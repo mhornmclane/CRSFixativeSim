@@ -1,0 +1,1630 @@
+<!doctype html>
+<html lang="en" data-visualize-standalone>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Fixative Cycle Planner</title>
+<style>:root {
+  color-scheme: light dark;
+  background-color: var(
+    --background,
+    var(--color-background-primary, light-dark(rgb(255 255 255), rgb(24 24 24)))
+  ) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: var(
+    --color-background-primary,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --card: color-mix(in oklab, var(--foreground) 5%, var(--background));
+  --card-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --popover: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255), rgb(45 45 45))
+  );
+  --popover-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --primary: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --primary-foreground: var(
+    --color-text-inverse,
+    light-dark(rgb(255 255 255), rgb(13 13 13))
+  );
+  --secondary: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%))
+  );
+  --secondary-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: var(
+    --color-text-secondary,
+    light-dark(rgb(26 28 31 / 49.4%), rgb(255 255 255 / 49.8%))
+  );
+  --accent: var(
+    --color-background-info,
+    light-dark(rgb(229 242 255), rgb(13 39 63))
+  );
+  --accent-foreground: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --destructive: var(
+    --color-text-warning,
+    light-dark(rgb(226 85 7), rgb(255 133 73))
+  );
+  --border: var(
+    --color-border-secondary,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+  --input: var(
+    --color-border-primary,
+    light-dark(
+      rgb(26 28 31 / 11.8%),
+      color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+    )
+  );
+  --ring: var(
+    --color-ring-primary,
+    light-dark(rgb(51 156 255), rgb(131 195 255 / 76%))
+  );
+  --font-size-base: var(--font-text-md-size, 14px);
+  --blue: light-dark(rgb(51 156 255), rgb(51 156 255));
+  --orange: light-dark(rgb(226 85 7), rgb(251 106 34));
+  --green: light-dark(rgb(0 162 64), rgb(64 201 119));
+  --red: light-dark(rgb(224 46 42), rgb(255 103 100));
+  --purple: light-dark(rgb(146 79 247), rgb(173 123 249));
+  --yellow: light-dark(rgb(255 195 0), rgb(255 210 64));
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans: -apple-system, system-ui, "Segoe UI", sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 430;
+  --font-weight-medium: 500;
+  --icon-size: 16px;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --corner-shape: round;
+  --radius: var(--border-radius-lg, 10px);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 17'%3E%3Cpath d='M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z'/%3E%3C/svg%3E");
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html > body {
+  /* Preserve MCP aliases for older inline renderers without creating :root cycles. */
+  --color-background-primary: var(
+    --background,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --color-text-primary: var(
+    --foreground,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --color-border-secondary: var(
+    --border,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+
+  margin: 0;
+  padding: var(--visualize-paint-gutter, 0px);
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: pointer;
+  font-weight: var(--font-weight-medium, 500);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+b,
+strong,
+th {
+  font-weight: var(--font-weight-medium);
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: var(--corner-shape);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--foreground);
+  font: inherit;
+  text-align: start;
+}
+
+.table :is(th, td) {
+  padding-block: 10px;
+  padding-inline: 0 24px;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table-responsive > .table :is(th, td) {
+  overflow-wrap: break-word;
+}
+
+.table :is(th, td):last-child {
+  padding-inline-end: 0;
+}
+
+.table :is(caption, thead th) {
+  font-weight: 600;
+}
+
+.table thead th {
+  padding-block: 8px;
+  border-bottom-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+.table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+
+.table.table-sm :is(th, td) {
+  padding-block: 6px;
+}
+
+.table.table-sm :is(th, td):not(:last-child) {
+  padding-inline-end: 16px;
+}
+
+.table :is(.text-end, [align="right"]) {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.table :is(.text-center, [align="center"]) {
+  text-align: center;
+}
+
+.table .text-nowrap {
+  white-space: nowrap;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: var(--corner-shape);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+#widget > :not(.card, .progress) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: none;
+  font-size: var(--font-size-tooltip);
+  line-height: var(--line-height-tooltip);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+hr {
+  width: 100%;
+  height: 1px;
+  margin-block: 6px;
+  border: 0;
+  background: var(--border);
+}
+
+.nav {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.progress {
+  display: flex;
+  height: 8px;
+  margin-block: calc((var(--line-height-normal, 1.5em) - 8px) / 2);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+}
+
+.progress-bar:only-child {
+  border-radius: var(--radius-full);
+}
+
+.progress-bar {
+  height: 100%;
+  flex-shrink: 0;
+  border: 0;
+  background: var(--viz-series-1);
+}
+
+.viz-badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+small,
+.text-small,
+.viz-badge {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls > .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls > .form-label > :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.nav-link,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+.btn,
+.nav-link {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover,
+.nav-link:not(:disabled):not([aria-disabled="true"]):hover {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn-primary {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: padding-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: padding-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.nav-pills .nav-link {
+  min-width: 0;
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.nav-justified .nav-link {
+  flex: 1 1 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.nav-pills .nav-link.active {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.btn:disabled,
+.nav-link:disabled,
+.nav-link[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type="file"] {
+  padding: 0;
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control[type="file"]::file-selector-button {
+  min-height: 26px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+}
+
+.form-control[type="file"]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type="color"] {
+  width: 40px;
+  height: 28px;
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type="color"]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: var(--corner-shape);
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 32px 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-check {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type="checkbox"] {
+  border-color: var(--input);
+  border-radius: var(--radius-sm);
+  corner-shape: var(--corner-shape);
+  background-color: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch) .form-check-input[type="checkbox"]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type="checkbox"]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: "";
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+}
+
+.form-check-input[type="radio"] {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+}
+
+.form-check-input[type="radio"]:checked {
+  border: 2px solid var(--primary);
+  background:
+    radial-gradient(circle, var(--primary-foreground) 0 2.5px, transparent 3px),
+    var(--primary);
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+  box-shadow: var(--shadow-sm);
+  content: "";
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--primary);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  border: 0;
+  accent-color: var(--primary);
+  background: linear-gradient(
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 7%, transparent)
+    )
+    center / 100% 2px no-repeat;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range::-moz-range-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+  [aria-pressed="true"],
+  [aria-selected="true"],
+  .is-selected
+) {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.btn.viz-tile:is([aria-pressed="true"], [aria-selected="true"], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible,
+.nav-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+  .btn,
+  .nav-link,
+  .form-control,
+  .form-select {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Keep small-screen WebKit from zooming when a text field receives focus. */
+  .form-control,
+  .form-select {
+    font-size: max(16px, var(--font-size-normal));
+  }
+
+  .form-control[type="file"]::file-selector-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .form-control-color[type="color"] {
+    width: 44px;
+    height: 44px;
+  }
+
+  .form-control:is(
+    [type="date"],
+    [type="datetime-local"],
+    [type="month"],
+    [type="time"],
+    [type="week"]
+  ) {
+    min-width: 0;
+    max-width: 100%;
+    padding-block: 8px;
+  }
+
+  .form-check {
+    min-height: 44px;
+    padding-inline: 15px;
+  }
+
+  .form-check-input {
+    position: relative;
+  }
+
+  .form-check-input::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    content: "";
+    transform: translate(-50%, -50%);
+  }
+
+  .form-check-label {
+    display: inline-flex;
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .form-range {
+    height: 44px;
+    touch-action: pan-y;
+  }
+
+  .form-range::-webkit-slider-runnable-track {
+    height: 44px;
+  }
+
+  .form-range::-moz-range-track {
+    height: 44px;
+  }
+
+  .form-range::-webkit-slider-thumb {
+    margin-top: 12px;
+  }
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget > svg {
+  width: 100%;
+}
+
+/* Model-authored chart rules can otherwise stretch icons after these styles load. */
+svg.lucide {
+  display: block;
+  width: var(--icon-size) !important;
+  height: var(--icon-size) !important;
+  flex: none;
+  margin: 0 !important;
+  stroke-width: 1.6;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html>body{padding:0}</style>
+</head>
+<body>
+<div id="fixative-planner">
+ <div class="viz-controls">
+  <label class="form-label">L1 · pump → tee (mL)<input class="form-control" data-input="v1" type="number" min="0" step="any" value="10"></label>
+  <label class="form-label">L2 · bag → tee (mL)<input class="form-control" data-input="v2" type="number" min="0" step="any" value="3"></label>
+  <label class="form-label">L3 · tee → filter (mL)<input class="form-control" data-input="v3" type="number" min="0" step="any" value="3"></label>
+  <label class="form-label">Reverse overpump margin (mL)<input class="form-control" data-input="over" type="number" min="0" step="any" value="1"></label>
+  <label class="form-label">Forward retained margin (mL)<input class="form-control" data-input="under" type="number" min="0" step="any" value="1"></label>
+  <label class="form-label">Desired fixative through F1 (mL)<input class="form-control" data-input="dose" type="number" min="0" step="any" value="30"></label>
+  <label class="form-label">Final signed buffer at T1 (mL)<input class="form-control" data-input="buffer" type="number" step="any" value="1"></label>
+ </div>
+ <div id="fp-error" role="alert" class="text-destructive" hidden></div>
+ <div id="fp-results" aria-live="polite">
+  <div class="viz-grid">
+   <div class="card viz-stat"><div>Fixative cycles</div><div class="viz-stat-value tabular-nums" id="fp-cycles"></div><div class="text-small" id="fp-strokes"></div></div>
+   <div class="card viz-stat"><div>Fixative delivered to F1</div><div class="viz-stat-value tabular-nums" id="fp-delivered"></div><div class="text-small" id="fp-excess"></div></div>
+   <div class="card viz-stat"><div>Fixative lost to ocean</div><div class="viz-stat-value tabular-nums" id="fp-lost"></div><div class="text-small">Final intake trimmed · no final overfill</div></div>
+  </div>
+  <div class="viz-row text-small tabular-nums fp-accounting" id="fp-balance"></div>
+  <div class="text-small" id="fp-policy"></div>
+  <div class="text-small" id="fp-buffer-note"></div>
+ </div>
+ <details id="fp-schedule"><summary>Stroke schedule · all volume columns in mL</summary><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Cycle</th><th>Reverse</th><th>Forward</th><th>Fixative to F1</th><th>Seawater to F1</th><th>Ocean loss</th></tr></thead><tbody id="fp-rows"></tbody></table></div></details>
+ <div id="fp-animation">
+  <div class="viz-controls fp-animation-controls">
+   <label class="form-label">Stage<select class="form-select" id="fp-stage"><option value="startup">Empty → ocean priming</option><option value="reverse">Reverse · load fixative</option><option value="forward">Forward · deliver fixative</option></select></label>
+   <label class="form-label">Cycle<input class="form-control" id="fp-cycle" type="number" min="1" step="1" value="1"></label>
+   <button class="btn" type="button" id="fp-play">Play plan</button>
+  </div>
+  <svg id="fp-svg" role="img" aria-label="Animated pump circuit showing current fluid positions and check valve states"></svg>
+  <div class="text-small" id="fp-status" aria-live="polite"></div>
+  <table class="table table-sm"><thead><tr><th>Running total</th><th class="text-end">mL</th></tr></thead><tbody id="fp-live-totals"></tbody></table>
+  <label class="form-label">Stroke progress <span id="fp-progress-value" class="tabular-nums"></span><input class="form-range" id="fp-progress" type="range" min="0" max="1000" value="0" aria-label="Current stage progress"></label>
+  <div class="viz-row text-small fp-legend"><span><i style="background:var(--muted-foreground)"></i>Air / empty</span><span><i style="background:var(--fp-water)"></i>Seawater</span><span><i style="background:var(--fp-load)"></i>Fixative · loading</span><span><i style="background:var(--fp-fix)"></i>Fixative · delivery</span><span><i style="background:var(--fp-bag)"></i>Retained bag line</span></div>
+ </div>
+ <details><summary>Accounting &amp; assumptions</summary>
+  <div class="text-small">One cycle = one reverse stroke + one forward stroke. Counts exclude ocean priming and sample collection. All plumbing starts air-filled; the ocean and bag contain liquid. Ocean priming fills the main line and filter before the fixative sequence.</div>
+  <div class="text-small">Before the final cycle: first reverse = L2 + L1 + reverse margin; later reverse = L1 + reverse margin. Forward strokes retain the forward margin in L1. The final intake is trimmed to meet the exact target and final buffer, without overfill. If needed, the penultimate forward stroke is shortened too. Reverse overpump margin applies only to earlier full loads.</div>
+  <div class="text-small">Final buffer: positive = fixative remaining in L1; zero = trailing edge at T1; negative = trailing edge inside L3. Effective buffer is capped below by forward margin − L3, so at least the forward margin remains ahead of the filter inlet. This permission to enter L3 applies only at the end of the plan; another reverse stroke cannot remove fluid trapped in L3.</div>
+  <div class="text-small">Delivered means fixative reaching the F1 inlet; filter internal hold-up is not modeled. Initial L3 seawater is purged before fixative is counted. Bag draw = delivered + ocean loss + fixative retained in L1, L2 and L3.</div>
+  <div class="text-small">Ideal displacement: no mixing, gas compression, valve leakage or pump calibration error. Include connector and valve volumes in the appropriate segment. Layout is schematic; fluid fill fractions follow the entered volumes. Priming timing is illustrative; the model does not validate a physical no-seawater guarantee.</div>
+ </details>
+</div>
+<style>
+ #fixative-planner { --fp-water:light-dark(#3265c7,#85afff);--fp-load:light-dark(#9a7300,#f5d753);--fp-fix:light-dark(#c45913,#ffa566);--fp-bag:light-dark(#926548,#d5a786);--fp-buffer:light-dark(#32825a,#7dd7a1); }
+ #fixative-planner #fp-svg { width:100%;display:block; }
+ #fixative-planner svg text { fill:var(--foreground);font-family:inherit;font-size:14px; }
+ #fixative-planner .fp-accounting, #fixative-planner .fp-legend { gap:14px;margin:12px 0; }
+ #fixative-planner .fp-legend i { display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px; }
+ #fixative-planner details, #fixative-planner .fp-animation-controls { margin-top:16px; }
+ #fixative-planner #fp-cycle { max-width:130px; }
+ #fixative-planner #fp-schedule table { min-width:560px; }
+</style>
+<script>
+(() => {
+ const root=document.getElementById('fixative-planner');
+ const inputControls=root.querySelector(':scope > .viz-controls');
+ const results=root.querySelector('#fp-results');
+ const animation=root.querySelector('#fp-animation');
+ const controls=animation.querySelector('.fp-animation-controls');
+ const svg=animation.querySelector('#fp-svg');
+ const legend=animation.querySelector('.fp-legend');
+ const status=animation.querySelector('#fp-status');
+ const progress=animation.querySelector('#fp-progress').closest('label');
+ const table=animation.querySelector('table');
+ const assumptions=root.querySelector(':scope > details:last-child');
+ const section=(cls,title)=>{const n=document.createElement('section');n.className=cls;const h=document.createElement('h2');h.textContent=title;n.append(h);return n;};
+ const header=document.createElement('header');header.className='fp-page-header';
+ const title=document.createElement('div');title.innerHTML='<h1>Fixative cycle planner</h1><div class="fp-subtitle">All volumes in mL · works offline</div>';
+ header.append(title,results);root.prepend(header);
+ const inputs=section('fp-input-panel','Inputs');inputControls.classList.add('fp-inputs');inputs.append(inputControls);
+ const labels={v1:'L1 · Pump to tee',v2:'L2 · Bag to tee',v3:'L3 · Tee to filter',over:'Reverse overpump margin',under:'Forward retained margin',dose:'Target fixative through F1',buffer:'Final signed buffer at T1'};
+ inputControls.querySelectorAll('input').forEach(i=>{i.parentElement.firstChild.textContent=labels[i.dataset.input];});
+ const hint=document.createElement('div');hint.id='fp-compact-buffer';hint.className='fp-input-hint';hint.textContent='Final buffer: + in L1 · 0 at tee · − into L3';inputs.append(hint);
+ const notes=document.createElement('details');notes.innerHTML='<summary>Calculated stroke settings</summary>';notes.append(root.querySelector('#fp-policy'),root.querySelector('#fp-buffer-note'));inputs.append(notes);
+ const diagram=section('fp-diagram-panel','Fluid paths');diagram.append(svg,legend);
+ const live=section('fp-live-panel','Playback & running totals');live.append(controls,status,progress,table);
+ animation.replaceChildren(diagram,live);root.insertBefore(inputs,animation);
+ const footer=document.createElement('footer');footer.className='fp-page-footer';footer.append(root.querySelector('#fp-schedule'),assumptions);root.append(footer);
+ root.querySelector('#fp-cycles').parentElement.querySelector('div').textContent='Cycles';
+ root.querySelector('#fp-delivered').parentElement.querySelector('div').textContent='Delivered to F1';
+ root.querySelector('#fp-lost').parentElement.querySelector('div').textContent='Lost to ocean';
+ const lostDetail=root.querySelector('#fp-lost').parentElement.querySelector('.text-small');lostDetail.textContent='Final intake: no overfill';
+})();
+</script>
+<script>
+(() => {
+  function solvePlan(p) {
+    const {v1,v2,v3,over,under,dose,buffer}=p;
+    if(![v1,v2,v3,over,under,dose,buffer].every(Number.isFinite)) throw Error('Enter a number in every volume field.');
+    if(v1<=0||v2<0||v3<0||over<0||under<0||dose<0) throw Error('L1 must be positive. Other volumes and margins must be zero or greater.');
+    if(under>=v1) throw Error('The forward retained margin must be smaller than L1 so each forward stroke can move fluid.');
+    const full=v1-under,minBuffer=under-v3,effectiveBuffer=Math.max(buffer,minBuffer);
+    if(effectiveBuffer>=v1) throw Error('The final buffer must be smaller than L1 to allow a final forward stroke.');
+    if(dose===0) return {...p,full,minBuffer,effectiveBuffer,n:0,strokes:0,last:0,penultimate:0,lastReverse:0,lastLoaded:0,totalForward:0,delivered:0,lost:0,bag:0,retained:0,remainingL1:0,remainingL3:0,water:0,excess:0};
+    const required=dose+v3,finalCapacity=v1-effectiveBuffer,ratio=(required-finalCapacity)/full,nearest=Math.round(ratio);
+    const n=Math.max(1,1+(Math.abs(ratio-nearest)<=8*Number.EPSILON*Math.max(1,Math.abs(ratio))?nearest:Math.ceil(ratio)));
+    if(!Number.isSafeInteger(n)||n>1000000000) throw Error('This combination needs more than one billion cycles; increase L1 or reduce the target or retained margin.');
+    let last=required-(n-1)*full,penultimate=full;
+    if(last<=0){last=finalCapacity;penultimate=required-last-(n-2)*full;}
+    last=Math.min(last,finalCapacity);
+    const lastLoaded=last+effectiveBuffer,previousReserve=n===1?0:v1-penultimate;
+    const lastReverse=Math.max(0,lastLoaded-previousReserve)+(n===1?v2:0);
+    const totalForward=required,delivered=dose,m=n-1,lost=m?m*over+(m-1)*under:0;
+    const bag=(m? v2+m*(v1+over):0)+lastReverse,remainingL1=Math.max(0,effectiveBuffer),remainingL3=v3+Math.min(0,effectiveBuffer),retained=v2+remainingL1+remainingL3;
+    if(![bag,lost,retained,delivered].every(Number.isFinite)) throw Error('Volumes are too large to calculate.');
+    return {...p,full,minBuffer,effectiveBuffer,n,strokes:2*n,last,penultimate,lastReverse,lastLoaded,totalForward,delivered,lost,bag,retained,remainingL1,remainingL3,water:v3,excess:0};
+  }
+  const root=document.getElementById('fixative-planner'), svg=root.querySelector('#fp-svg'), picker=root.querySelector('#fp-stage'),cycleInput=root.querySelector('#fp-cycle'),slider=root.querySelector('#fp-progress'),play=root.querySelector('#fp-play');
+  const $=s=>root.querySelector(s),fmt=n=>Math.abs(n)>0&&Math.abs(n)<0.001?n.toExponential(2):n.toLocaleString('en-US',{maximumFractionDigits:3});
+  let plan=null,stage=0,progress=0,running=false,lastTime=0,hold=0,raf=0;
+  const C={water:'var(--fp-water)',load:'var(--fp-load)',fix:'var(--fp-fix)',bag:'var(--fp-bag)',air:'var(--muted-foreground)',fg:'var(--foreground)',bg:'var(--background)',border:'var(--border)',buffer:'var(--fp-buffer)'};
+  const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+  const el=(tag,attrs={},content='')=>{const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const[k,v]of Object.entries(attrs))n.setAttribute(k,v);if(content)n.textContent=content;svg.append(n);return n;};
+  function line(x,y,X,Y,color,width=2){el('line',{x1:x,y1:y,x2:X,y2:Y,stroke:color,'stroke-width':width});}
+  function label(x,y,s,anchor='start'){el('text',{x,y,'text-anchor':anchor},s);}
+  function cycleForward(c){return c===plan.n?plan.last:c===plan.n-1?plan.penultimate:plan.full;}
+  function forwardThrough(c){return c<=0?0:c>=plan.n?plan.totalForward:c===plan.n-1?(c-1)*plan.full+plan.penultimate:c*plan.full;}
+  function reverseFor(c){return c===plan.n?plan.lastReverse:plan.v1+plan.over+(c===1?plan.v2:0);}
+  function bagThrough(c){return c<=0?0:c>=plan.n?plan.bag:plan.v2+c*(plan.v1+plan.over);}
+  function lossThrough(c){return c<=0?0:c>=plan.n?plan.lost:plan.over+(c-1)*(plan.over+plan.under);}
+  function state(){const c=Math.max(1,Math.ceil(stage/2)),reverse=stage>0&&stage%2===1;return {c,reverse,forward:stage>0&&!reverse,first:c===1,final:c===plan.n,target:stage===0?0:reverse?reverseFor(c):cycleForward(c)};}
+  function sync(){if(!plan)return;const s=state();picker.value=stage===0?'startup':s.reverse?'reverse':'forward';cycleInput.value=s.c;cycleInput.disabled=stage===0||!plan.n;cycleInput.max=Math.max(1,plan.n);picker.options[1].disabled=!plan.n;picker.options[2].disabled=!plan.n;$('#fp-status').textContent=stage===0?'All plumbing starts empty → ocean priming and sampling':`Cycle ${s.c} / ${plan.n} · ${s.reverse?'CV1 open / CV2 closed':'CV1 closed / CV2 open'} · ${fmt(s.target)} mL ${s.reverse?'reverse':'forward'}`;}
+  function draw(){
+    if(!plan)return;
+    const {v1,v2,v3,under}=plan,s=state(),q=progress*s.target;
+    const w=Math.max(300,svg.clientWidth),x=Math.max(190,Math.round(w*.54)),l1=110,l2=clamp(v2*26,78,Math.min(110,x-100)),l3=96,start=140,tee=start+l1,inlet=tee+l3,end=inlet+82,height=end+30,bx=x-l2,cvx=(bx+x)/2;
+    svg.style.height=height+'px';svg.setAttribute('viewBox',`0 0 ${w} ${height}`);svg.replaceChildren();el('title',{},'Fixative cycle planner');el('desc',{},'CV1 is the bag-line check valve, labeled immediately below it. CV2 is the filter-line check valve, labeled immediately beside it. Fluid fractions follow entered segment volumes.');
+    const startupFront=38+progress*(end-38),before=forwardThrough(s.c-1),priorFixL3=Math.min(v3,before),retain=s.first?0:v1-cycleForward(s.c-1),forwardLoaded=s.final?plan.lastLoaded:v1;
+    const yAt=z=>z<=0?tee+z/v1*l1:tee+(v3?z/v3*l3:0);
+    line(x,38,x,end,stage===0?C.air:C.water,8);line(bx,tee,x,tee,stage===0||(s.first&&s.reverse)?C.air:C.bag,8);
+    if(stage===0&&progress>0)line(x,38,x,startupFront,C.water,8);
+    const load=s.first?Math.max(0,q-v2):q,stored=Math.min(v1,retain+load),oceanLoss=s.reverse?Math.max(0,retain+load-v1):0;
+    let boundary=tee;
+    if(s.reverse){
+      if(s.first){const near=Math.max(0,q-v2),far=Math.min(v1,q);if(far>near)line(x,tee-far/v1*l1,x,tee-near/v1*l1,C.air,8);}
+      const branchFraction=s.first?(v2?Math.min(1,q/v2):1):1;if(branchFraction>0)line(bx,tee,bx+l2*branchFraction,tee,C.load,8);
+      boundary=tee-stored/v1*l1;if(stored>0)line(x,boundary,x,tee,C.load,8);
+      if(v3>0&&priorFixL3>0)line(x,tee,x,tee+priorFixL3/v3*l3,C.fix,8);
+      if(v3===0)line(x,tee,x,inlet,C.fix,8);
+      if(oceanLoss>0)line(x,38,x,start,C.load,8);
+    }
+    if(s.forward){
+      if(s.first&&forwardLoaded<v1&&v2>0){const airStart=Math.max(-v1,-Math.min(v1,forwardLoaded+v2)+q),airEnd=Math.min(v3,-forwardLoaded+q);if(airEnd>airStart)line(x,yAt(airStart),x,yAt(airEnd),C.air,8);}
+      const tail=q-forwardLoaded,head=Math.min(v3,priorFixL3+q);boundary=yAt(tail);
+      if(head>tail)line(x,boundary,x,yAt(head),C.fix,8);
+      if(v3===0)line(x,tee,x,inlet,C.fix,8);
+    }
+    line(x+28,start,x+28,tee,C.border,1);line(x+23,start,x+33,start,C.border,1);line(x+23,tee,x+33,tee,C.border,1);label(x+38,(start+tee)/2,'L1');label(x+38,(start+tee)/2+20,fmt(v1)+' mL');
+    line(x+82,tee,x+82,inlet,C.border,1);line(x+77,tee,x+87,tee,C.border,1);line(x+77,inlet,x+87,inlet,C.border,1);label(x+82,inlet+18,'L3','end');label(x+82,inlet+38,fmt(v3)+' mL','end');
+    line(bx,tee-28,x,tee-28,C.border,1);line(bx,tee-33,bx,tee-23,C.border,1);line(x,tee-33,x,tee-23,C.border,1);label(cvx,tee-56,'L2','middle');label(cvx,tee-37,fmt(v2)+' mL','middle');
+    el('rect',{x:x-55,y:5,width:110,height:33,rx:8,fill:C.bg,stroke:C.border});label(x,28,'Ocean','middle');
+    const py=start-56;el('circle',{cx:x,cy:py,r:36,fill:C.bg,stroke:C.fg,'stroke-width':1.5});const angle=(s.reverse?-1:1)*progress*6*Math.PI;
+    for(let k=0;k<3;k++)el('circle',{cx:x+20*Math.cos(angle+k*2*Math.PI/3),cy:py+20*Math.sin(angle+k*2*Math.PI/3),r:6,fill:'var(--muted)',stroke:C.fg});el('circle',{cx:x,cy:py,r:5,fill:C.fg});label(x-47,py-5,'P1','end');label(x-47,py+14,'Pump','end');label(x+44,py+5,progress===1?'Stop':s.reverse?'Reverse':'Forward');
+    el('rect',{x:bx-90,y:tee-18,width:90,height:80,rx:9,fill:C.bg,stroke:C.fg});label(bx-45,tee+16,'Fixative','middle');label(bx-45,tee+37,'bag','middle');
+    function valve(cx,cy,h,open,name){el('rect',{x:cx-13,y:cy-14,width:26,height:28,rx:3,fill:C.bg,stroke:C.fg});el('path',{d:h?`M${cx-7},${cy-7} L${cx+4},${cy} L${cx-7},${cy+7} Z`:`M${cx-7},${cy-7} L${cx},${cy+4} L${cx+7},${cy-7} Z`,fill:open?C.fg:'var(--muted)',stroke:C.fg});if(h){line(cx+6,cy-8,cx+6,cy+8,C.fg,1);label(cx,cy+32,name,'middle');label(cx,cy+51,open?'Open':'Closed','middle');}else{line(cx-8,cy+6,cx+8,cy+6,C.fg,1);label(cx+24,cy-3,name);label(cx+24,cy+16,open?'Open':'Closed');}}
+    valve(cvx,tee,true,s.reverse,'CV1');valve(x,tee+43,false,!s.reverse,'CV2');el('circle',{cx:x,cy:tee,r:5,fill:C.fg});label(x+12,tee-10,'T1');
+    const cumulative=before+(s.forward?q:0),receiving=stage>0&&((v3===0&&(s.forward||!s.first))||cumulative>=v3&&cumulative>0);
+    if(receiving)line(x,inlet+68,x,end,C.fix,8);
+    el('rect',{x:x-26,y:inlet,width:52,height:68,rx:8,fill:C.bg,stroke:C.fg,'stroke-width':1.5});for(let yy=inlet+11;yy<=inlet+56;yy+=9)line(x-17,yy,x+17,yy,stage===0&&yy>startupFront?C.air:receiving?C.fix:C.water,3);label(x-40,inlet+71,'F1','end');label(x-40,inlet+90,'Sterivex','end');label(x,end+22,'Discharge','middle');
+    if(stage>0){line(x-10,boundary,x+10,boundary,C.fg,2);if(oceanLoss>0){label(x-65,17,'Ocean loss','end');label(x-65,36,fmt(oceanLoss)+' mL','end');}if(s.forward){
+      const reserve=forwardLoaded-q;
+      if(s.final){line(x+15,yAt(v3-under),x+15,inlet,C.buffer,3);}else{line(x+15,tee-under/v1*l1,x+15,tee,C.buffer,3);}
+      if(progress===1){label(x-15,start+12,'Fixative trailing edge','end');label(x-15,start+31,reserve<0?fmt(-reserve)+' mL into L3':reserve===0?'At T1':fmt(reserve)+' mL before T1','end');}
+    }}
+    function arrow(y,up,color){el('path',{d:`M${x-5},${y+(up?5:-5)} L${x},${y} L${x+5},${y+(up?5:-5)}`,fill:'none',stroke:color,'stroke-width':2.5});}
+    if(progress<1){if(s.reverse){arrow(start+30,true,boundary<=start+30?C.load:C.water);if(oceanLoss>0)arrow(43,true,C.load);}else{arrow(43,false,stage===0&&startupFront<43?C.air:C.water);arrow(end-8,false,stage===0&&startupFront<end-8?C.air:receiving?C.fix:C.water);}}
+    const water=Math.min(q,Math.max(0,v3-before)),delivered=s.forward?Math.max(0,q-water):0;
+    $('#fp-progress-value').textContent=stage===0?Math.round(progress*100)+'% · schematic':`${fmt(q)} / ${fmt(s.target)} mL${s.forward?' · '+fmt(delivered)+' mL fixative to F1':' · '+fmt(oceanLoss)+' mL fixative lost'}`;slider.value=Math.round(progress*1000);
+    const cumulativeForward=stage===0?0:before+(s.forward?q:0),totalDelivered=Math.max(0,cumulativeForward-v3);
+    const totalBag=stage===0?0:bagThrough(s.c-1)+(s.reverse?q:reverseFor(s.c));
+    const totalLoss=stage===0?0:lossThrough(s.c-1)+(s.reverse?oceanLoss:lossThrough(s.c)-lossThrough(s.c-1));
+    const retainedL1=stage===0?0:s.reverse?stored:Math.max(0,forwardLoaded-q),retainedL2=stage===0?0:s.first&&s.reverse?Math.min(v2,q):v2;
+    const retainedL3=stage===0?0:s.reverse?priorFixL3:Math.max(0,Math.min(v3,priorFixL3+q)-Math.max(0,q-forwardLoaded));
+    const rows=[['Fixative drawn from bag',totalBag],['Fixative delivered to F1',totalDelivered],['Fixative lost to ocean',totalLoss],['Fixative retained · L1',retainedL1],['Fixative retained · L2',retainedL2],['Fixative retained · L3',retainedL3],['Total fixative retained',retainedL1+retainedL2+retainedL3],['Initial L3 seawater purged to F1',Math.min(v3,cumulativeForward)]];
+    const live=$('#fp-live-totals');if(!live.children.length){for(const[name]of rows){const tr=document.createElement('tr'),th=document.createElement('th'),td=document.createElement('td');th.scope='row';th.textContent=name;td.className='text-end tabular-nums';tr.append(th,td);live.append(tr);}}
+    rows.forEach((row,i)=>live.children[i].lastElementChild.textContent=fmt(row[1]));
+  }
+  function stop(){running=false;cancelAnimationFrame(raf);play.textContent='Play plan';}
+  function tick(t){if(!running||!plan)return;const dt=lastTime?Math.min(t-lastTime,100)*2:0;lastTime=t;if(progress===1){hold+=dt;if(hold>=1200){if(stage<2*plan.n){stage++;progress=0;hold=0;sync();}else{stop();play.textContent='Replay from empty';}}}else{const duration=stage===0?6000:clamp(state().target*800,1500,16000);progress=Math.min(1,progress+dt/duration);}draw();if(running)raf=requestAnimationFrame(tick);}
+  function schedule(){
+    const body=$('#fp-rows');body.replaceChildren();if(!plan.n)return;
+    const ranges=plan.n<=20?Array.from({length:plan.n},(_,i)=>[i+1,i+1]):[[1,1],[2,plan.n-2],[plan.n-1,plan.n-1],[plan.n,plan.n]];
+    for(const[a,b]of ranges){const startF=forwardThrough(a-1),endF=forwardThrough(b),forward=endF-startF,fix=Math.max(0,endF-plan.v3)-Math.max(0,startF-plan.v3),reverse=bagThrough(b)-bagThrough(a-1),loss=lossThrough(b)-lossThrough(a-1);const tr=document.createElement('tr');for(const value of [a===b?String(a):`${a}–${b} (totals)`,fmt(reverse),fmt(forward),fmt(fix),fmt(Math.max(0,forward-fix)),fmt(loss)]){const td=document.createElement('td');td.textContent=value;tr.append(td);}body.append(tr);}
+  }
+  function update(){
+    stop();const p={};root.querySelectorAll('[data-input]').forEach(input=>p[input.dataset.input]=input.value===''?NaN:Number(input.value));
+    try{plan=solvePlan(p);$('#fp-error').hidden=true;$('#fp-results').hidden=false;$('#fp-animation').hidden=false;$('#fp-schedule').hidden=false;}
+    catch(e){plan=null;$('#fp-error').textContent=e.message;$('#fp-error').hidden=false;$('#fp-results').hidden=true;$('#fp-animation').hidden=true;$('#fp-schedule').hidden=true;return;}
+    $('#fp-cycles').textContent=fmt(plan.n);$('#fp-strokes').textContent=`${fmt(plan.strokes)} strokes · sampling excluded`;
+    $('#fp-delivered').textContent=fmt(plan.delivered)+' mL';$('#fp-excess').textContent=plan.excess>1e-9?fmt(plan.excess)+' mL above target':'Target met without excess';
+    $('#fp-lost').textContent=fmt(plan.lost)+' mL';$('#fp-balance').textContent=`Bag: ${fmt(plan.bag)} mL · retained: ${fmt(plan.retained)} mL · initial purge: ${fmt(plan.water)} mL`;
+    $('#fp-policy').textContent=plan.n?`First intake ${fmt(reverseFor(1))} mL. Final intake ${fmt(plan.lastReverse)} mL; final forward ${fmt(plan.last)} mL. Final retained: L1 ${fmt(plan.remainingL1)} mL / L3 ${fmt(plan.remainingL3)} mL.`:'No fixative strokes needed for a zero target; final buffer is not applied.';
+    $('#fp-buffer-note').textContent=`Final signed buffer: ${fmt(plan.effectiveBuffer)} mL${plan.effectiveBuffer!==plan.buffer?' (capped from '+fmt(plan.buffer)+' mL)':''}. Allowed minimum: ${fmt(plan.minBuffer)} mL. Positive = L1; zero = T1; negative = into L3. Green mark = retained margin ahead of F1 on the final stroke.`;
+    $('#fp-compact-buffer').textContent=`Buffer used: ${fmt(plan.effectiveBuffer)} mL · minimum ${fmt(plan.minBuffer)} mL${plan.effectiveBuffer!==plan.buffer?' (input capped)':''}`;stage=0;progress=0;hold=0;schedule();sync();draw();
+  }
+  root.querySelectorAll('[data-input]').forEach(input=>input.addEventListener('input',update));
+  picker.addEventListener('change',()=>{stop();const c=clamp(Math.floor(Number(cycleInput.value)||1),1,Math.max(1,plan.n));stage=picker.value==='startup'?0:2*c-(picker.value==='reverse'?1:0);progress=0;sync();draw();});
+  cycleInput.addEventListener('change',()=>{stop();const c=clamp(Math.floor(Number(cycleInput.value)||1),1,Math.max(1,plan.n));stage=2*c-(picker.value==='reverse'?1:0);progress=0;sync();draw();});
+  slider.addEventListener('input',()=>{stop();progress=Number(slider.value)/1000;draw();});
+  play.addEventListener('click',()=>{if(running){stop();return;}if(stage===plan.n*2&&progress===1){stage=0;progress=0;sync();}running=true;lastTime=0;hold=0;play.textContent='Pause';raf=requestAnimationFrame(tick);});
+  new ResizeObserver(()=>{if(plan)draw();}).observe(root);update();
+})();
+</script>
+
+
+
+<script>
+(() => {
+  if (window.FloatingUIDOM == null) {
+    return;
+  }
+  const { autoUpdate, computePosition, flip, offset, shift, size } =
+    window.FloatingUIDOM;
+  const tooltipPlacements = new Set(["top", "right", "bottom", "left"]);
+  const tooltipId = `codex-visualization-tooltip-${
+    window.crypto?.randomUUID?.() ?? Date.now().toString(36)
+  }`;
+  const tooltipGap = 5;
+  const hoverDelay = 700;
+  const skipDelay = 300;
+  let activeTrigger = null;
+  let pendingTrigger = null;
+  let tooltip = null;
+  let openTimeout = null;
+  let autoUpdateCleanup = null;
+  let positionRequest = 0;
+  let skipDelayUntil = 0;
+  let lastPointerWasTouch = false;
+  let pinnedByTouch = false;
+
+  const getTrigger = (target) =>
+    target?.nodeType === Node.ELEMENT_NODE
+      ? target.closest("[data-tooltip]")
+      : null;
+  const containsTarget = (trigger, target) =>
+    target?.nodeType != null && trigger.contains(target);
+  const getContent = (trigger) =>
+    trigger.getAttribute("data-tooltip")?.trim() ?? "";
+  const getPlacement = (trigger) => {
+    const placement = trigger.getAttribute("data-tooltip-placement");
+    return tooltipPlacements.has(placement) ? placement : "top";
+  };
+  const getTooltip = () => {
+    if (tooltip == null) {
+      tooltip = document.createElement("div");
+      tooltip.id = tooltipId;
+      tooltip.className = "tooltip";
+      tooltip.setAttribute("role", "tooltip");
+    }
+    return tooltip;
+  };
+  const setDescribedBy = (trigger, described) => {
+    const ids = new Set(
+      (trigger.getAttribute("aria-describedby") ?? "")
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (described) {
+      ids.add(tooltipId);
+    } else {
+      ids.delete(tooltipId);
+    }
+    if (ids.size === 0) {
+      trigger.removeAttribute("aria-describedby");
+    } else {
+      trigger.setAttribute("aria-describedby", [...ids].join(" "));
+    }
+  };
+  const clearOpenTimeout = () => {
+    if (openTimeout != null) {
+      window.clearTimeout(openTimeout);
+      openTimeout = null;
+    }
+    pendingTrigger = null;
+  };
+  const closeTooltip = (activateSkipDelay = true) => {
+    clearOpenTimeout();
+    pinnedByTouch = false;
+    positionRequest += 1;
+    autoUpdateCleanup?.();
+    autoUpdateCleanup = null;
+    if (activeTrigger == null) {
+      return;
+    }
+    setDescribedBy(activeTrigger, false);
+    activeTrigger = null;
+    tooltip?.remove();
+    if (activateSkipDelay) {
+      skipDelayUntil = Date.now() + skipDelay;
+    }
+  };
+  const updatePosition = (trigger, floating) => {
+    const request = ++positionRequest;
+    void computePosition(trigger, floating, {
+      middleware: [
+        offset(tooltipGap),
+        flip({ padding: tooltipGap }),
+        shift({ padding: tooltipGap }),
+        size({
+          padding: tooltipGap,
+          apply({ availableHeight, availableWidth, elements }) {
+            elements.floating.style.setProperty(
+              "--tooltip-available-width",
+              `${Math.max(0, availableWidth)}px`,
+            );
+            elements.floating.style.setProperty(
+              "--tooltip-available-height",
+              `${Math.max(0, availableHeight)}px`,
+            );
+          },
+        }),
+      ],
+      placement: getPlacement(trigger),
+      strategy: "fixed",
+    })
+      .then(({ x, y }) => {
+        if (activeTrigger !== trigger || request !== positionRequest) {
+          return;
+        }
+        const scale = window.devicePixelRatio || 1;
+        floating.style.transform = `translate(${Math.round(x * scale) / scale}px, ${Math.round(y * scale) / scale}px)`;
+        floating.style.visibility = "visible";
+      })
+      .catch(() => {
+        if (activeTrigger === trigger && request === positionRequest) {
+          closeTooltip(false);
+        }
+      });
+  };
+  const openTooltip = (trigger) => {
+    const content = getContent(trigger);
+    if (!trigger.isConnected || content.length === 0) {
+      return;
+    }
+    clearOpenTimeout();
+    if (activeTrigger === trigger) {
+      return;
+    }
+    closeTooltip();
+    const floating = getTooltip();
+    floating.textContent = content;
+    floating.style.visibility = "hidden";
+    floating.style.transform = "translate(0, 0)";
+    document.body.appendChild(floating);
+    activeTrigger = trigger;
+    setDescribedBy(trigger, true);
+    autoUpdateCleanup = autoUpdate(trigger, floating, () => {
+      updatePosition(trigger, floating);
+    });
+  };
+  const requestOpen = (trigger, immediate = false) => {
+    if (
+      getContent(trigger).length === 0 ||
+      activeTrigger === trigger ||
+      pendingTrigger === trigger
+    ) {
+      return;
+    }
+    clearOpenTimeout();
+    pendingTrigger = trigger;
+    const delay =
+      immediate || activeTrigger != null || Date.now() < skipDelayUntil
+        ? 0
+        : hoverDelay;
+    if (delay === 0) {
+      openTooltip(trigger);
+      return;
+    }
+    openTimeout = window.setTimeout(() => {
+      openTimeout = null;
+      pendingTrigger = null;
+      openTooltip(trigger);
+    }, delay);
+  };
+  const handlePointerOpen = (event) => {
+    if (event.pointerType === "touch") {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    requestOpen(trigger);
+  };
+  const handlePointer = (event) => {
+    lastPointerWasTouch =
+      event.type === "pointerdown" && event.pointerType === "touch";
+  };
+  const handleTouchClick = (event) => {
+    const isTouch = event.pointerType === "touch" || lastPointerWasTouch;
+    lastPointerWasTouch = false;
+    if (!isTouch || event.detail === 0) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (
+      trigger == null ||
+      !trigger.isConnected ||
+      getContent(trigger).length === 0 ||
+      (pinnedByTouch && activeTrigger === trigger)
+    ) {
+      if (pinnedByTouch) {
+        closeTooltip();
+      }
+      return;
+    }
+    openTooltip(trigger);
+    pinnedByTouch = activeTrigger === trigger;
+    window.setTimeout(() => {
+      if (activeTrigger === trigger && !trigger.isConnected) {
+        closeTooltip(false);
+      }
+    }, 0);
+  };
+  const handleLeave = (event) => {
+    if (pinnedByTouch) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handleFocusIn = (event) => {
+    const trigger = getTrigger(event.target);
+    if (trigger?.matches(":focus-visible")) {
+      requestOpen(trigger, true);
+    }
+  };
+  const handleKeyDown = (event) => {
+    if (event.key === "Escape") {
+      closeTooltip();
+    }
+  };
+  const handleContextMenu = (event) => {
+    lastPointerWasTouch = false;
+    const trigger = getTrigger(event.target);
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const destroy = () => {
+    closeTooltip(false);
+    lastPointerWasTouch = false;
+    document.removeEventListener("pointerover", handlePointerOpen);
+    document.removeEventListener("pointerdown", handlePointer);
+    document.removeEventListener("pointercancel", handlePointer);
+    document.removeEventListener("click", handleTouchClick);
+    document.removeEventListener("pointerout", handleLeave);
+    document.removeEventListener("focusin", handleFocusIn);
+    document.removeEventListener("focusout", handleLeave);
+    document.removeEventListener("keydown", handleKeyDown);
+    document.removeEventListener("contextmenu", handleContextMenu);
+    tooltip = null;
+  };
+
+  document.addEventListener("pointerover", handlePointerOpen);
+  document.addEventListener("pointerdown", handlePointer);
+  document.addEventListener("pointercancel", handlePointer);
+  document.addEventListener("click", handleTouchClick);
+  document.addEventListener("pointerout", handleLeave);
+  document.addEventListener("focusin", handleFocusIn);
+  document.addEventListener("focusout", handleLeave);
+  document.addEventListener("keydown", handleKeyDown);
+  document.addEventListener("contextmenu", handleContextMenu);
+  window.addEventListener("pagehide", destroy, { once: true });
+})();
+</script>
+<script id="codex-visualization-tabs">
+(() => {
+  const selector = '.nav[role="tablist"] [role="tab"]';
+  const disabled = ':disabled,[aria-disabled="true"]';
+  const selectTab = (selected) => {
+    const panelId = selected.getAttribute("aria-controls");
+    for (const tab of selected.closest('[role="tablist"]').querySelectorAll('[role="tab"]')) {
+      const active = tab === selected;
+      tab.classList.toggle("active", active);
+      tab.setAttribute("aria-selected", String(active));
+      const id = tab.getAttribute("aria-controls");
+      const panel = id && document.getElementById(id);
+      if (panel != null) {
+        panel.hidden = id !== panelId;
+        if (!panel.hidden && selected.id) {
+          panel.setAttribute("aria-labelledby", selected.id);
+        }
+      }
+    }
+  };
+  const interact = (event) => {
+    const tab = event.target?.closest?.(selector);
+    if (event.defaultPrevented || tab == null || tab.matches(disabled)) {
+      return;
+    }
+    if (event.type === "click") {
+      selectTab(tab);
+      return;
+    }
+    const tabs = Array.from(
+      tab.closest('[role="tablist"]').querySelectorAll('[role="tab"]'),
+    ).filter((candidate) => !candidate.matches(disabled));
+    const current = tabs.indexOf(tab);
+    let next;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      next = (current + 1) % tabs.length;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      next = (current + tabs.length - 1) % tabs.length;
+    } else if (event.key === "Home") {
+      next = 0;
+    } else if (event.key === "End") {
+      next = tabs.length - 1;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    tabs[next].focus();
+    selectTab(tabs[next]);
+  };
+
+  for (const list of document.querySelectorAll('.nav[role="tablist"]')) {
+    const selected =
+      list.querySelector('[role="tab"][aria-selected="true"]') ??
+      list.querySelector('[role="tab"].active') ??
+      list.querySelector('[role="tab"]');
+    if (selected != null) {
+      selectTab(selected);
+    }
+  }
+  document.addEventListener("click", interact);
+  document.addEventListener("keydown", interact);
+  window.addEventListener("pagehide", () => {
+    document.removeEventListener("click", interact);
+    document.removeEventListener("keydown", interact);
+  }, { once: true });
+})();
+</script>
+
+<script>
+(() => {
+  const initialize = () => {
+    globalThis.lucide?.createIcons({ attrs: { width: 16, height: 16 } });
+  };
+  if (globalThis.lucide != null) {
+    initialize();
+    return;
+  }
+  document
+    .getElementById("codex-visualization-lucide")
+    ?.addEventListener("load", initialize, { once: true });
+})();
+</script>
+
+<style>
+html {font-size:14px;color-scheme:light dark;}
+html>body {padding:12px 18px !important;margin:0;background:var(--background);}
+#fixative-planner {display:grid;grid-template-columns:260px minmax(320px,1fr) 330px;gap:12px 24px;max-width:1460px;margin:0 auto;align-items:start;}
+#fixative-planner * {box-sizing:border-box;}
+#fixative-planner h1 {font-size:22px;line-height:1.2;font-weight:500;margin:0 0 6px;}
+#fixative-planner h2 {font-size:14px;font-weight:500;line-height:1.3;margin:0 0 10px;color:var(--muted-foreground);}
+#fixative-planner .fp-page-header {grid-column:1/-1;display:grid;grid-template-columns:260px 1fr;gap:24px;align-items:center;padding-bottom:10px;border-bottom:1px solid var(--border);}
+#fixative-planner .fp-subtitle,#fixative-planner .fp-input-hint {font-size:12px;color:var(--muted-foreground);}
+#fixative-planner #fp-results .viz-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+#fixative-planner #fp-results .card {padding:7px 12px;box-shadow:none;border:0;border-radius:0;background:transparent;}
+#fixative-planner #fp-results .card>div:first-child {font-size:12px;color:var(--muted-foreground);}
+#fixative-planner #fp-results .viz-stat-value {font-size:22px;line-height:1.2;font-weight:500;}
+#fixative-planner #fp-results .text-small {font-size:11px;line-height:1.3;}
+#fixative-planner #fp-balance {margin:3px 12px 0;font-size:12px;line-height:1.4;}
+#fixative-planner #fp-animation {display:contents;}
+#fixative-planner .fp-inputs {display:grid;grid-template-columns:1fr;gap:9px;margin:0;}
+#fixative-planner .fp-inputs>.form-label {display:block;margin:0;font-size:12px;line-height:1.35;}
+#fixative-planner .fp-inputs .form-control {display:block;width:100%;height:32px;min-height:32px;margin-top:3px;padding:5px 9px;font-size:14px;line-height:1.2;}
+#fixative-planner .fp-input-hint {margin-top:12px;line-height:1.4;}
+#fixative-planner details {margin-top:10px;font-size:12px;}
+#fixative-planner details .text-small {font-size:12px;line-height:1.45;margin:7px 0;}
+#fixative-planner .fp-diagram-panel {min-width:0;}
+#fixative-planner #fp-svg {width:100%;height:auto;}
+#fixative-planner .fp-legend {font-size:11px;gap:5px 12px;margin:6px 0 0;justify-content:center;line-height:1.4;}
+#fixative-planner svg text {font-size:13px;}
+#fixative-planner .fp-animation-controls {display:grid;grid-template-columns:90px 1fr;gap:8px;margin:0 0 8px;align-items:end;}
+#fixative-planner .fp-animation-controls>.form-label:first-child {grid-column:1/-1;}
+#fixative-planner .fp-animation-controls .form-label {display:block;font-size:12px;line-height:1.3;margin:0;}
+#fixative-planner .fp-animation-controls .form-control,#fixative-planner .fp-animation-controls .form-select {width:100%;height:32px;min-height:32px;margin-top:3px;padding:5px 8px;font-size:13px;}
+#fixative-planner #fp-play {height:32px;min-height:32px;padding:5px 12px;font-size:13px;justify-self:end;}
+#fixative-planner #fp-status {font-size:12px;line-height:1.4;min-height:34px;margin:7px 0;}
+#fixative-planner .fp-live-panel>label {font-size:12px;display:block;margin:0 0 10px;line-height:1.4;}
+#fixative-planner #fp-progress-value {display:block;min-height:18px;}
+#fixative-planner #fp-progress {display:block;margin-top:4px;}
+#fixative-planner .fp-live-panel table {font-size:12px;margin:0;}
+#fixative-planner .fp-live-panel th,#fixative-planner .fp-live-panel td {padding:7px 5px;line-height:1.25;}
+#fixative-planner .fp-live-panel th {font-weight:400;}
+#fixative-planner .fp-live-panel thead th {color:var(--muted-foreground);}
+#fixative-planner .fp-live-panel tr:nth-child(2) td,#fixative-planner .fp-live-panel tr:nth-child(3) td {font-weight:500;}
+#fixative-planner .fp-page-footer {grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:24px;border-top:1px solid var(--border);padding-top:5px;}
+#fixative-planner .fp-page-footer details {margin-top:0;}
+#fixative-planner #fp-error {grid-column:1/-1;}
+#fixative-planner [hidden] {display:none !important;}
+@media(min-width:1450px){#fixative-planner{grid-template-columns:285px minmax(360px,1fr) 370px;}#fixative-planner .fp-page-header{grid-template-columns:285px 1fr;}}
+@media(min-width:1051px) and (max-height:740px){html>body{padding-top:8px !important;padding-bottom:8px !important;}#fixative-planner{row-gap:10px;}#fixative-planner .fp-page-header{padding-bottom:6px;}#fixative-planner .fp-live-panel th,#fixative-planner .fp-live-panel td{padding-top:5px;padding-bottom:5px;}}
+@media(max-width:1050px){#fixative-planner{grid-template-columns:240px minmax(320px,1fr);gap:16px;}#fixative-planner .fp-page-header{grid-template-columns:1fr;gap:8px;}#fixative-planner .fp-live-panel{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;}#fixative-planner .fp-live-panel h2{grid-column:1/-1;}#fixative-planner .fp-live-panel table{grid-column:2;grid-row:2/5;}#fixative-planner #fp-status{grid-column:1;}#fixative-planner .fp-live-panel>label{grid-column:1;}}
+@media(max-width:640px){html>body{padding:12px !important;}#fixative-planner{display:block;}#fixative-planner .fp-page-header{display:block;}#fixative-planner #fp-results{margin-top:12px;}#fixative-planner .fp-input-panel{margin-top:16px;}#fixative-planner .fp-inputs{grid-template-columns:1fr 1fr;gap:9px 12px;}#fixative-planner .fp-inputs .form-control{font-size:16px;}#fixative-planner .fp-diagram-panel{margin-top:20px;}#fixative-planner .fp-live-panel{display:block;margin-top:20px;}#fixative-planner .fp-page-footer{display:block;margin-top:20px;}#fixative-planner .fp-page-footer details{margin-top:10px;}#fixative-planner #fp-results .card{padding:5px;}#fixative-planner #fp-results .viz-stat-value{font-size:19px;}}
+</style></body>
+</html>
