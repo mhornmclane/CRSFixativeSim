@@ -1027,12 +1027,14 @@ html>body{padding:0}</style>
 <div id="fixative-planner">
  <div class="viz-controls">
   <label class="form-label">L1 · pump → tee (mL)<input class="form-control" data-input="v1" type="number" min="0" step="any" value="10"></label>
-  <label class="form-label">L2 · bag → tee (mL)<input class="form-control" data-input="v2" type="number" min="0" step="any" value="3"></label>
+  <label class="form-label">L2 · CV1 → tee (mL)<input class="form-control" data-input="v2" type="number" min="0" step="any" value="3"></label>
   <label class="form-label">L3 · tee → filter (mL)<input class="form-control" data-input="v3" type="number" min="0" step="any" value="3"></label>
   <label class="form-label">Reverse overpump margin (mL)<input class="form-control" data-input="over" type="number" min="0" step="any" value="1"></label>
   <label class="form-label">Forward retained margin (mL)<input class="form-control" data-input="under" type="number" min="0" step="any" value="1"></label>
-  <label class="form-label">Desired fixative through F1 (mL)<input class="form-control" data-input="dose" type="number" min="0" step="any" value="30"></label>
-  <label class="form-label">Final signed buffer at T1 (mL)<input class="form-control" data-input="buffer" type="number" step="any" value="1"></label>
+  <label class="form-label">Cartridge volume (mL)<input class="form-control" data-input="cartridgeVolume" type="number" min="0" step="any" value="7"></label>
+  <label class="form-label">Required dosage (× cartridge volume)<input class="form-control" data-input="dosageMultiplier" type="number" min="0" step="any" value="5"></label>
+  <div class="form-label">Calculated fixative target<output id="fp-target" class="form-control" aria-live="polite">35 mL</output></div>
+  <label class="form-label">Final buffer from cartridge (mL)<input class="form-control" data-input="buffer" type="number" min="0" step="any" value="1"></label>
  </div>
  <div id="fp-error" role="alert" class="text-destructive" hidden></div>
  <div id="fp-results" aria-live="polite">
@@ -1053,16 +1055,18 @@ html>body{padding:0}</style>
    <button class="btn" type="button" id="fp-play">Play plan</button>
   </div>
   <svg id="fp-svg" role="img" aria-label="Animated pump circuit showing current fluid positions and check valve states"></svg>
+  <div id="fp-cartridge-progress" class="text-small tabular-nums" style="text-align:center;margin-top:8px"></div>
+  <div id="fp-cartridge-caption" class="text-small" style="text-align:center">Progress toward requested dosage · not a measure of biological fixation</div>
   <div class="text-small" id="fp-status" aria-live="polite"></div>
   <table class="table table-sm"><thead><tr><th>Running total</th><th class="text-end">mL</th></tr></thead><tbody id="fp-live-totals"></tbody></table>
   <label class="form-label">Stroke progress <span id="fp-progress-value" class="tabular-nums"></span><input class="form-range" id="fp-progress" type="range" min="0" max="1000" value="0" aria-label="Current stage progress"></label>
   <div class="viz-row text-small fp-legend"><span><i style="background:var(--muted-foreground)"></i>Air / empty</span><span><i style="background:var(--fp-water)"></i>Seawater</span><span><i style="background:var(--fp-load)"></i>Fixative · loading</span><span><i style="background:var(--fp-fix)"></i>Fixative · delivery</span><span><i style="background:var(--fp-bag)"></i>Retained bag line</span></div>
  </div>
  <details><summary>Accounting &amp; assumptions</summary>
-  <div class="text-small">One cycle = one reverse stroke + one forward stroke. Counts exclude ocean priming and sample collection. All plumbing starts air-filled; the ocean and bag contain liquid. Ocean priming fills the main line and filter before the fixative sequence.</div>
+  <div class="text-small">One cycle = one reverse stroke + one forward stroke. Counts exclude ocean priming and sample collection. The fixed 1 mL bag-to-CV1 line starts and stays primed with fixative. L1, L2 (CV1 to T1), and L3 start air-filled; the ocean and bag contain liquid. Ocean priming fills the main line and filter before the fixative sequence.</div>
   <div class="text-small">Before the final cycle: first reverse = L2 + L1 + reverse margin; later reverse = L1 + reverse margin. Forward strokes retain the forward margin in L1. The final intake is trimmed to meet the exact target and final buffer, without overfill. If needed, the penultimate forward stroke is shortened too. Reverse overpump margin applies only to earlier full loads.</div>
-  <div class="text-small">Final buffer: positive = fixative remaining in L1; zero = trailing edge at T1; negative = trailing edge inside L3. Effective buffer is capped below by forward margin − L3, so at least the forward margin remains ahead of the filter inlet. This permission to enter L3 applies only at the end of the plan; another reverse stroke cannot remove fluid trapped in L3.</div>
-  <div class="text-small">Delivered means fixative reaching the F1 inlet; filter internal hold-up is not modeled. Initial L3 seawater is purged before fixative is counted. Bag draw = delivered + ocean loss + fixative retained in L1, L2 and L3.</div>
+  <div class="text-small">Final buffer is the nonnegative volume between the fixative trailing edge and the cartridge inlet. A buffer smaller than L3 ends inside L3; equal to L3 ends at T1; larger than L3 ends in L1. The effective buffer is at least the forward retained margin. Only the final stroke may let the trailing edge enter L3.</div>
+  <div class="text-small">Target dose = cartridge volume × required dosage (defaults: 7 mL × 5 = 35 mL). Shading fills over the first cartridge volume, then darkens toward the requested dosage. Delivered means fixative reaching the F1 inlet; cartridge volume is not added again to tubing volume or commanded displacement. Filter internal hold-up is not modeled. Initial L3 seawater is purged before fixative is counted. Bag draw during the plan = delivered + ocean loss + fixative retained in L1, L2 and L3. The pre-existing 1 mL in the bag-to-CV1 line is separate: bag draw + 1 mL = delivered + ocean loss + total retained in all lines.</div>
   <div class="text-small">Ideal displacement: no mixing, gas compression, valve leakage or pump calibration error. Include connector and valve volumes in the appropriate segment. Layout is schematic; fluid fill fractions follow the entered volumes. Priming timing is illustrative; the model does not validate a physical no-seawater guarantee.</div>
  </details>
 </div>
@@ -1094,11 +1098,11 @@ html>body{padding:0}</style>
  const title=document.createElement('div');title.innerHTML='<h1>Fixative cycle planner</h1><div class="fp-subtitle">All volumes in mL · works offline</div>';
  header.append(title,results);root.prepend(header);
  const inputs=section('fp-input-panel','Inputs');inputControls.classList.add('fp-inputs');inputs.append(inputControls);
- const labels={v1:'L1 · Pump to tee',v2:'L2 · Bag to tee',v3:'L3 · Tee to filter',over:'Reverse overpump margin',under:'Forward retained margin',dose:'Target fixative through F1',buffer:'Final signed buffer at T1'};
+ const labels={v1:'L1 · Pump to tee',v2:'L2 · CV1 to tee',v3:'L3 · Tee to filter',over:'Reverse overpump margin',under:'Forward retained margin',cartridgeVolume:'Cartridge volume (mL)',dosageMultiplier:'Required dosage (× cartridge volume)',buffer:'Final buffer from cartridge'};
  inputControls.querySelectorAll('input').forEach(i=>{i.parentElement.firstChild.textContent=labels[i.dataset.input];});
- const hint=document.createElement('div');hint.id='fp-compact-buffer';hint.className='fp-input-hint';hint.textContent='Final buffer: + in L1 · 0 at tee · − into L3';inputs.append(hint);
+ const hint=document.createElement('div');hint.id='fp-compact-buffer';hint.className='fp-input-hint';hint.textContent='Final buffer: volume ahead of the cartridge inlet (mL)';inputs.append(hint);
  const notes=document.createElement('details');notes.innerHTML='<summary>Calculated stroke settings</summary>';notes.append(root.querySelector('#fp-policy'),root.querySelector('#fp-buffer-note'));inputs.append(notes);
- const diagram=section('fp-diagram-panel','Fluid paths');diagram.append(svg,legend);const scaleNote=document.createElement('div');scaleNote.className='text-small';scaleNote.style.cssText='text-align:center;margin-top:6px;opacity:.7';scaleNote.textContent='All tubing uses one shared scale, including folds. Fluid follows the complete connected path.';diagram.append(scaleNote);
+ const diagram=section('fp-diagram-panel','Fluid paths');diagram.append(svg,root.querySelector('#fp-cartridge-progress'),root.querySelector('#fp-cartridge-caption'),legend);const scaleNote=document.createElement('div');scaleNote.id='fp-scale-note';scaleNote.className='text-small';scaleNote.style.cssText='text-align:center;margin-top:6px;opacity:.7';scaleNote.textContent='All tubing uses one shared scale, including folds. Fluid follows the complete connected path.';diagram.append(scaleNote);
  const live=section('fp-live-panel','Playback & running totals');live.append(controls,status,progress,table);
  animation.replaceChildren(diagram,live);root.insertBefore(inputs,animation);
  const footer=document.createElement('footer');footer.className='fp-page-footer';footer.append(root.querySelector('#fp-schedule'),assumptions);root.append(footer);
@@ -1114,22 +1118,39 @@ html>body{padding:0}</style>
     const {v1,v2,v3,over,under,dose,buffer}=p;
     if(![v1,v2,v3,over,under,dose,buffer].every(Number.isFinite)) throw Error('Enter a number in every volume field.');
     if(v1<=0||v2<0||v3<0||over<0||under<0||dose<0) throw Error('L1 must be positive. Other volumes and margins must be zero or greater.');
+    if(buffer<0) throw Error('Final buffer from the cartridge must be zero or greater.');
     if(under>=v1) throw Error('The forward retained margin must be smaller than L1 so each forward stroke can move fluid.');
-    const full=v1-under,minBuffer=under-v3,effectiveBuffer=Math.max(buffer,minBuffer);
-    if(effectiveBuffer>=v1) throw Error('The final buffer must be smaller than L1 to allow a final forward stroke.');
+    const full=v1-under,minBuffer=under,effectiveBuffer=Math.max(buffer,minBuffer),teeOffset=effectiveBuffer-v3;
+    if(teeOffset>=v1) throw Error('The final buffer from the cartridge must be smaller than L1 + L3 to allow a final forward stroke.');
     if(dose===0) return {...p,full,minBuffer,effectiveBuffer,n:0,strokes:0,last:0,penultimate:0,lastReverse:0,lastLoaded:0,totalForward:0,delivered:0,lost:0,bag:0,retained:0,remainingL1:0,remainingL3:0,water:0,excess:0};
-    const required=dose+v3,finalCapacity=v1-effectiveBuffer,ratio=(required-finalCapacity)/full,nearest=Math.round(ratio);
+    const required=dose+v3,finalCapacity=v1-teeOffset,ratio=(required-finalCapacity)/full,nearest=Math.round(ratio);
     const n=Math.max(1,1+(Math.abs(ratio-nearest)<=8*Number.EPSILON*Math.max(1,Math.abs(ratio))?nearest:Math.ceil(ratio)));
     if(!Number.isSafeInteger(n)||n>1000000000) throw Error('This combination needs more than one billion cycles; increase L1 or reduce the target or retained margin.');
     let last=required-(n-1)*full,penultimate=full;
     if(last<=0){last=finalCapacity;penultimate=required-last-(n-2)*full;}
     last=Math.min(last,finalCapacity);
-    const lastLoaded=last+effectiveBuffer,previousReserve=n===1?0:v1-penultimate;
+    const lastLoaded=last+teeOffset,previousReserve=n===1?0:v1-penultimate;
     const lastReverse=Math.max(0,lastLoaded-previousReserve)+(n===1?v2:0);
     const totalForward=required,delivered=dose,m=n-1,lost=m?m*over+(m-1)*under:0;
-    const bag=(m? v2+m*(v1+over):0)+lastReverse,remainingL1=Math.max(0,effectiveBuffer),remainingL3=v3+Math.min(0,effectiveBuffer),retained=v2+remainingL1+remainingL3;
+    const bag=(m? v2+m*(v1+over):0)+lastReverse,remainingL1=Math.max(0,effectiveBuffer-v3),remainingL3=Math.min(v3,effectiveBuffer),retained=v2+remainingL1+remainingL3;
     if(![bag,lost,retained,delivered].every(Number.isFinite)) throw Error('Volumes are too large to calculate.');
     return {...p,full,minBuffer,effectiveBuffer,n,strokes:2*n,last,penultimate,lastReverse,lastLoaded,totalForward,delivered,lost,bag,retained,remainingL1,remainingL3,water:v3,excess:0};
+  }
+  function dosageTarget(cartridgeVolume,dosageMultiplier){
+    if(!Number.isFinite(cartridgeVolume)||cartridgeVolume<=0)throw Error('Cartridge volume must be a positive, finite number.');
+    if(!Number.isFinite(dosageMultiplier)||dosageMultiplier<=0)throw Error('Required dosage must be a positive, finite number.');
+    const target=cartridgeVolume*dosageMultiplier;
+    if(!Number.isFinite(target)||target<=0)throw Error('Calculated target is outside the supported numeric range.');
+    return target;
+  }
+  function cartridgeAppearance(delivered,cartridgeVolume,dosageMultiplier){
+    const volumes=Math.max(0,delivered)/cartridgeVolume;
+    const fill=Math.min(1,volumes);
+    const darkening=dosageMultiplier>1?Math.max(0,Math.min(1,(volumes-1)/(dosageMultiplier-1))):0;
+    return {volumes,fill,opacity:0.22+0.68*darkening};
+  }
+  function deliveredAtStage(stage,priorForward,strokeForward,l3){
+    return stage===0?0:Math.max(0,priorForward+strokeForward-l3);
   }
   const root=document.getElementById('fixative-planner'), svg=root.querySelector('#fp-svg'), picker=root.querySelector('#fp-stage'),cycleInput=root.querySelector('#fp-cycle'),slider=root.querySelector('#fp-progress'),play=root.querySelector('#fp-play');
   const $=s=>root.querySelector(s),fmt=n=>Math.abs(n)>0&&Math.abs(n)<0.001?n.toExponential(2):n.toLocaleString('en-US',{maximumFractionDigits:3});
@@ -1145,16 +1166,16 @@ html>body{padding:0}</style>
   function bagThrough(c){return c<=0?0:c>=plan.n?plan.bag:plan.v2+c*(plan.v1+plan.over);}
   function lossThrough(c){return c<=0?0:c>=plan.n?plan.lost:plan.over+(c-1)*(plan.over+plan.under);}
   function state(){const c=Math.max(1,Math.ceil(stage/2)),reverse=stage>0&&stage%2===1;return {c,reverse,forward:stage>0&&!reverse,first:c===1,final:c===plan.n,target:stage===0?0:reverse?reverseFor(c):cycleForward(c)};}
-  function sync(){if(!plan)return;const s=state();picker.value=stage===0?'startup':s.reverse?'reverse':'forward';cycleInput.value=s.c;cycleInput.disabled=stage===0||!plan.n;cycleInput.max=Math.max(1,plan.n);picker.options[1].disabled=!plan.n;picker.options[2].disabled=!plan.n;$('#fp-status').textContent=stage===0?'All plumbing starts empty → ocean priming and sampling':`Cycle ${s.c} / ${plan.n} · ${s.reverse?'CV1 open / CV2 closed':'CV1 closed / CV2 open'} · ${fmt(s.target)} mL ${s.reverse?'reverse':'forward'}`;}
+  function sync(){if(!plan)return;const s=state();picker.value=stage===0?'startup':s.reverse?'reverse':'forward';cycleInput.value=s.c;cycleInput.disabled=stage===0||!plan.n;cycleInput.max=Math.max(1,plan.n);picker.options[1].disabled=!plan.n;picker.options[2].disabled=!plan.n;$('#fp-status').textContent=stage===0?'Ocean priming and sampling · bag → CV1 already primed':`Cycle ${s.c} / ${plan.n} · ${s.reverse?'CV1 open / CV2 closed':'CV1 closed / CV2 open'} · ${fmt(s.target)} mL ${s.reverse?'reverse':'forward'}`;}
   function draw(){
     if(!plan)return;
     const {v1,v2,v3,under}=plan,s=state(),q=progress*s.target;
     // One scale for every measured tube; only the entire diagram may zoom.
-    const pixelsPerMl=Math.min(26,700/Math.max(v1,v2,v3));
+    const pixelsPerMl=Math.min(26,700/Math.max(1,v1,v2,v3));
     const pipeLength=volume=>volume*pixelsPerMl;
     const availableWidth=Math.max(300,svg.clientWidth),w=Math.max(600,availableWidth);
     const x=w-230,start=80,l1=Math.min(200,pipeLength(v1)),l2=Math.min(200,pipeLength(v2)),l3=Math.min(200,pipeLength(v3));
-    const tee=start+l1,inlet=tee+l3,end=inlet+68,height=Math.max(340,end+45),bx=x-l2,cvx=x-Math.min(35,l2/2);
+    const tee=start+l1,inlet=tee+l3,end=inlet+68,height=Math.max(340,end+45),cvx=x-l2,bx=cvx-pipeLength(1);
     svg.style.height=(height*availableWidth/w)+'px';svg.setAttribute('viewBox',`0 0 ${w} ${height}`);svg.replaceChildren();el('title',{},'Fixative cycle planner');el('desc',{},'All tubing uses one distance per milliliter, including folded sections. The three paths join directly at the tee with no extra connectors. The pump is drawn on L1; fluid moves continuously through it. CV2 stays beside the tee.');
     function folded(volume,span,lead,tail,maxAmplitude,transform){
       const added=Math.max(0,pipeLength(volume)-span);
@@ -1184,8 +1205,10 @@ html>body{padding:0}</style>
       el('polyline',{points:points.map(p=>p.join(',')).join(' '),fill:'none',stroke:color,'stroke-width':width,'stroke-linejoin':'round','stroke-linecap':'round'});
     }
     const p1=folded(v1,l1,Math.min(85,l1/2),16,100,(a,b)=>[x+b,start+a]);
-    const p2=folded(v2,l2,16,Math.min(60,l2/2),70,(a,b)=>[bx+a,tee-b]);
+    const p2=folded(v2,l2,16,Math.min(60,l2/2),70,(a,b)=>[cvx+a,tee-b]);
     const p3=folded(v3,l3,Math.min(65,l3/2),16,100,(a,b)=>[x+b,tee+a]);
+    const bagLine=folded(1,pipeLength(1),0,0,70,(a,b)=>[bx+a,tee-b]);
+    paint(bagLine,0,1,C.bag);
     const before=forwardThrough(s.c-1),priorFixL3=Math.min(v3,before),retain=s.first?0:v1-cycleForward(s.c-1),forwardLoaded=s.final?plan.lastLoaded:v1;
     const yAt=z=>z<=0?point(p1,1+z/v1):point(p3,v3?z/v3:0);
     function fluid(from,to,color,width=8){
@@ -1215,31 +1238,39 @@ html>body{padding:0}</style>
     }
     label(x+125,tee-l1/2,'L1');label(x+125,tee-l1/2+20,fmt(v1)+' mL');
     label(x+125,tee+l3/2,'L3');label(x+125,tee+l3/2+20,fmt(v3)+' mL');
-    label(bx+20,tee-95,'L2');label(bx+20,tee-75,fmt(v2)+' mL');
+    label(cvx+l2/2,tee-95,'L2 · CV1 → T1','middle');label(cvx+l2/2,tee-75,fmt(v2)+' mL','middle');
+    label(cvx-10,tee+85,'Bag → CV1: 1 mL','end');label(cvx-10,tee+103,'Always primed','end');
     el('rect',{x:x-55,y:start-33,width:110,height:33,rx:8,fill:C.bg,stroke:C.border});label(x,start-10,'Ocean','middle');
     const py=start+Math.min(42,l1/2),pumpRadius=Math.min(30,l1/3);el('circle',{cx:x,cy:py,r:pumpRadius,fill:'none',stroke:C.fg,'stroke-width':1.5});const angle=(s.reverse?-1:1)*progress*6*Math.PI;
     for(let k=0;k<3;k++)el('circle',{cx:x+pumpRadius*.55*Math.cos(angle+k*2*Math.PI/3),cy:py+pumpRadius*.55*Math.sin(angle+k*2*Math.PI/3),r:Math.min(6,pumpRadius*.2),fill:'var(--muted)',stroke:C.fg});el('circle',{cx:x,cy:py,r:Math.min(5,pumpRadius*.16),fill:C.fg});label(x-47,py-5,'P1','end');label(x-47,py+14,'Pump','end');label(x+44,py+5,progress===1?'Stop':s.reverse?'Reverse':'Forward');
     el('rect',{x:bx-90,y:tee-18,width:90,height:80,rx:9,fill:C.bg,stroke:C.fg});label(bx-45,tee+16,'Fixative','middle');label(bx-45,tee+37,'bag','middle');
     function valve(cx,cy,h,open,name){el('rect',{x:cx-13,y:cy-14,width:26,height:28,rx:3,fill:C.bg,stroke:C.fg});el('path',{d:h?`M${cx-7},${cy-7} L${cx+4},${cy} L${cx-7},${cy+7} Z`:`M${cx-7},${cy-7} L${cx},${cy+4} L${cx+7},${cy-7} Z`,fill:open?C.fg:'var(--muted)',stroke:C.fg});if(h){line(cx+6,cy-8,cx+6,cy+8,C.fg,1);label(cx,cy+32,name,'middle');label(cx,cy+51,open?'Open':'Closed','middle');}else{line(cx-8,cy+6,cx+8,cy+6,C.fg,1);label(cx+24,cy-3,name);label(cx+24,cy+16,open?'Open':'Closed');}}
     valve(cvx,tee,true,s.reverse,'CV1');valve(x,tee+Math.min(35,l3/2),false,!s.reverse,'CV2');el('circle',{cx:x,cy:tee,r:5,fill:C.fg});label(x+12,tee-10,'T1');
-    el('rect',{x:x-26,y:inlet,width:52,height:68,rx:8,fill:C.bg,stroke:C.fg,'stroke-width':1.5});for(let yy=inlet+11;yy<=inlet+56;yy+=9)line(x-17,yy,x+17,yy,C.border,3);label(x-40,inlet+71,'F1','end');label(x-40,inlet+90,'Sterivex','end');label(x,end+22,'Discharge','middle');
+    const cumulativeForward=stage===0?0:before+(s.forward?q:0),totalDelivered=deliveredAtStage(stage,before,s.forward?q:0,v3);
+    const cartridge=cartridgeAppearance(totalDelivered,plan.cartridgeVolume,plan.dosageMultiplier);
+    el('rect',{x:x-26,y:inlet,width:52,height:68,rx:8,fill:C.bg,stroke:C.fg,'stroke-width':1.5});
+    if(cartridge.fill>0)el('rect',{'data-cartridge-fill':'true',x:x-22,y:inlet+4,width:44,height:60*cartridge.fill,rx:3,fill:C.fix,'fill-opacity':cartridge.opacity});
+    for(let yy=inlet+11;yy<=inlet+56;yy+=9)line(x-17,yy,x+17,yy,C.border,2);
+    label(x-40,inlet+71,'F1','end');label(x-40,inlet+90,'Sterivex','end');label(x,end+22,'Discharge','middle');
+    $('#fp-cartridge-progress').textContent=`${fmt(totalDelivered)} / ${fmt(plan.dose)} mL · ${fmt(cartridge.volumes)} / ${fmt(plan.dosageMultiplier)} cartridge volumes`;
+
     if(stage>0){el('circle',{cx:boundary[0],cy:boundary[1],r:5,fill:C.bg,stroke:C.fg,'stroke-width':2});if(oceanLoss>0){label(x-65,17,'Ocean loss','end');label(x-65,36,fmt(oceanLoss)+' mL','end');}if(s.forward){
       const reserve=forwardLoaded-q;
       // Trace the reserve along the same folded route as the fluid.
-      if(s.final){fluid(v3-under,v3,C.buffer,3);}else{fluid(-under,0,C.buffer,3);}
-      if(progress===1){label(x-15,start+12,'Fixative trailing edge','end');label(x-15,start+31,reserve<0?fmt(-reserve)+' mL into L3':reserve===0?'At T1':fmt(reserve)+' mL before T1','end');}
+      if(s.final){fluid(v3-plan.effectiveBuffer,v3,C.buffer,3);}else{fluid(-under,0,C.buffer,3);}
+      if(progress===1){label(x-15,start+12,'Fixative trailing edge','end');label(x-15,start+31,fmt(Math.max(0,v3+reserve))+' mL before cartridge','end');}
     }}
     function arrow(y,up,color){el('path',{d:`M${x-5},${y+(up?5:-5)} L${x},${y} L${x+5},${y+(up?5:-5)}`,fill:'none',stroke:color,'stroke-width':2.5});}
     if(progress<1&&l1>12){const arrowY=start+6;arrow(arrowY,s.reverse,stage===0&&startupDistance<6?C.air:s.reverse&&boundary[1]<=arrowY?C.load:C.water);}
-    const scaleNote=root.querySelector('.fp-diagram-panel .text-small:last-child');if(scaleNote)scaleNote.textContent=`All tubing: ${(pixelsPerMl*availableWidth/w).toFixed(2)} screen px/mL across L1–L3, including folds.`;
+    const scaleNote=root.querySelector('#fp-scale-note');if(scaleNote)scaleNote.textContent=`All tubing: ${(pixelsPerMl*availableWidth/w).toFixed(2)} screen px/mL across L1–L3, including folds.`;
     const water=Math.min(q,Math.max(0,v3-before)),delivered=s.forward?Math.max(0,q-water):0;
     $('#fp-progress-value').textContent=stage===0?Math.round(progress*100)+'% · schematic':`${fmt(q)} / ${fmt(s.target)} mL${s.forward?' · '+fmt(delivered)+' mL fixative to F1':' · '+fmt(oceanLoss)+' mL fixative lost'}`;slider.value=Math.round(progress*1000);
-    const cumulativeForward=stage===0?0:before+(s.forward?q:0),totalDelivered=Math.max(0,cumulativeForward-v3);
+
     const totalBag=stage===0?0:bagThrough(s.c-1)+(s.reverse?q:reverseFor(s.c));
     const totalLoss=stage===0?0:lossThrough(s.c-1)+(s.reverse?oceanLoss:lossThrough(s.c)-lossThrough(s.c-1));
     const retainedL1=stage===0?0:s.reverse?stored:Math.max(0,forwardLoaded-q),retainedL2=stage===0?0:s.first&&s.reverse?Math.min(v2,q):v2;
     const retainedL3=stage===0?0:s.reverse?priorFixL3:Math.max(0,Math.min(v3,priorFixL3+q)-Math.max(0,q-forwardLoaded));
-    const rows=[['Fixative drawn from bag',totalBag],['Fixative delivered to F1',totalDelivered],['Fixative lost to ocean',totalLoss],['Fixative retained · L1',retainedL1],['Fixative retained · L2',retainedL2],['Fixative retained · L3',retainedL3],['Total fixative retained',retainedL1+retainedL2+retainedL3],['Initial L3 seawater purged to F1',Math.min(v3,cumulativeForward)]];
+    const rows=[['Fixative drawn from bag · this plan',totalBag],['Fixative delivered to F1',totalDelivered],['Fixative lost to ocean',totalLoss],['Fixative retained · L1',retainedL1],['Fixative retained · L2',retainedL2],['Fixative retained · L3',retainedL3],['Fixative retained · bag → CV1 (pre-primed)',1],['Total fixative retained · all lines',1+retainedL1+retainedL2+retainedL3],['Initial L3 seawater purged to F1',Math.min(v3,cumulativeForward)]];
     const live=$('#fp-live-totals');if(!live.children.length){for(const[name]of rows){const tr=document.createElement('tr'),th=document.createElement('th'),td=document.createElement('td');th.scope='row';th.textContent=name;td.className='text-end tabular-nums';tr.append(th,td);live.append(tr);}}
     rows.forEach((row,i)=>live.children[i].lastElementChild.textContent=fmt(row[1]));
   }
@@ -1252,14 +1283,14 @@ html>body{padding:0}</style>
   }
   function update(){
     stop();const p={};root.querySelectorAll('[data-input]').forEach(input=>p[input.dataset.input]=input.value===''?NaN:Number(input.value));
-    try{plan=solvePlan(p);$('#fp-error').hidden=true;$('#fp-results').hidden=false;$('#fp-animation').hidden=false;$('#fp-schedule').hidden=false;}
-    catch(e){plan=null;$('#fp-error').textContent=e.message;$('#fp-error').hidden=false;$('#fp-results').hidden=true;$('#fp-animation').hidden=true;$('#fp-schedule').hidden=true;return;}
+    try{p.dose=dosageTarget(p.cartridgeVolume,p.dosageMultiplier);$('#fp-target').textContent=fmt(p.dose)+' mL';plan=solvePlan(p);$('#fp-error').hidden=true;$('#fp-results').hidden=false;$('#fp-animation').hidden=false;$('#fp-schedule').hidden=false;}
+    catch(e){$('#fp-target').textContent='—';plan=null;$('#fp-error').textContent=e.message;$('#fp-error').hidden=false;$('#fp-results').hidden=true;$('#fp-animation').hidden=true;$('#fp-schedule').hidden=true;return;}
     $('#fp-cycles').textContent=fmt(plan.n);$('#fp-strokes').textContent=`${fmt(plan.strokes)} strokes · sampling excluded`;
     $('#fp-delivered').textContent=fmt(plan.delivered)+' mL';$('#fp-excess').textContent=plan.excess>1e-9?fmt(plan.excess)+' mL above target':'Target met without excess';
-    $('#fp-lost').textContent=fmt(plan.lost)+' mL';$('#fp-balance').textContent=`Bag: ${fmt(plan.bag)} mL · retained: ${fmt(plan.retained)} mL · initial purge: ${fmt(plan.water)} mL`;
+    $('#fp-lost').textContent=fmt(plan.lost)+' mL';$('#fp-balance').textContent=`Bag: ${fmt(plan.bag)} mL · retained: ${fmt(plan.retained+1)} mL (includes 1 mL pre-prime) · initial purge: ${fmt(plan.water)} mL`;
     $('#fp-policy').textContent=plan.n?`First intake ${fmt(reverseFor(1))} mL. Final intake ${fmt(plan.lastReverse)} mL; final forward ${fmt(plan.last)} mL. Final retained: L1 ${fmt(plan.remainingL1)} mL / L3 ${fmt(plan.remainingL3)} mL.`:'No fixative strokes needed for a zero target; final buffer is not applied.';
-    $('#fp-buffer-note').textContent=`Final signed buffer: ${fmt(plan.effectiveBuffer)} mL${plan.effectiveBuffer!==plan.buffer?' (capped from '+fmt(plan.buffer)+' mL)':''}. Allowed minimum: ${fmt(plan.minBuffer)} mL. Positive = L1; zero = T1; negative = into L3. Green mark = retained margin ahead of F1 on the final stroke.`;
-    $('#fp-compact-buffer').textContent=`Buffer used: ${fmt(plan.effectiveBuffer)} mL · minimum ${fmt(plan.minBuffer)} mL${plan.effectiveBuffer!==plan.buffer?' (input capped)':''}`;stage=0;progress=0;hold=0;schedule();sync();draw();
+    $('#fp-buffer-note').textContent=`Final buffer from cartridge: ${fmt(plan.effectiveBuffer)} mL${plan.effectiveBuffer!==plan.buffer?' (raised from '+fmt(plan.buffer)+' mL)':''}. Minimum: ${fmt(plan.minBuffer)} mL. Green mark = final buffer measured back from the cartridge inlet.`;
+    $('#fp-compact-buffer').textContent=`Buffer from cartridge: ${fmt(plan.effectiveBuffer)} mL · minimum ${fmt(plan.minBuffer)} mL${plan.effectiveBuffer!==plan.buffer?' (input capped)':''}`;stage=0;progress=0;hold=0;schedule();sync();draw();
   }
   root.querySelectorAll('[data-input]').forEach(input=>input.addEventListener('input',update));
   picker.addEventListener('change',()=>{stop();const c=clamp(Math.floor(Number(cycleInput.value)||1),1,Math.max(1,plan.n));stage=picker.value==='startup'?0:2*c-(picker.value==='reverse'?1:0);progress=0;sync();draw();});

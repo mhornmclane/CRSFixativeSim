@@ -11,10 +11,10 @@ The operation starts after ocean-water priming and sample collection. It draws f
 ```text
 Ocean ↔ reversible peristaltic pump P1 ↔ L1 ↔ tee T1 → CV2 → L3 → F1 → discharge
                                               ↑
-                                  bag → L2 → CV1
+                                  bag → 1 mL primed → CV1 → L2
 ```
 
-The drawing is topological: CV1 is included within the bag-to-tee volume L2, and CV2 is included within the tee-to-filter volume L3. Do not count their internal volumes twice.
+The drawing is topological: The bag-to-CV1 segment is a fixed 1 mL, always primed with fixative. L2 runs from CV1 to T1; CV2 is included within the tee-to-filter volume L3. Do not count their internal volumes twice.
 
 | Reference | Definition |
 |---|---|
@@ -32,60 +32,66 @@ The drawing is topological: CV1 is included within the bag-to-tee volume L2, and
 | Pump operation | CV1 | CV2 | Intended flow |
 |---|---|---|---|
 | Forward | Closed | Open | P1 → L1 → T1 → L3 → F1 |
-| Reverse | Open | Closed | Bag → L2 → T1 → L1 → P1 |
+| Reverse | Open | Closed | Bag → pre-primed 1 mL → CV1 → L2 → T1 → L1 → P1 |
 | Stopped | No modeled flow | No modeled flow | Fluid inventory held constant |
 
 These are expected passive valve states, not valve-actuator commands or proof that the valves physically attained those states.
 
 ## 2. Volume definitions and solver inputs
 
-All displayed volumes are in mL. Firmware should use a documented integer volume unit, such as µL, and signed arithmetic for the final buffer. An integer representation does not imply that the hardware is accurate to that unit.
+All displayed volumes are in mL. Firmware should use a documented integer volume unit, such as µL, and signed arithmetic for internal coordinates. An integer representation does not imply that the hardware is accurate to that unit.
 
 | Symbol | Firmware name | Browser variable | Definition | Example |
 |---|---|---|---|---:|
 | A | `l1_capacity` | `v1` | Effective internal volume between the defined pump reference plane and T1 | 10 mL |
-| J | `l2_capacity` | `v2` | Effective internal volume from bag outlet to T1, including CV1 and associated fittings | 3 mL |
+| J | `l2_capacity` | `v2` | Effective internal volume from CV1 to T1; excludes the fixed, pre-primed bag-to-CV1 line | 3 mL |
 | C | `l3_capacity` | `v3` | Effective internal volume from T1 to F1 inlet, including CV2 and associated fittings | 3 mL |
 | O | `reverse_overpump_margin` | `over` | Extra commanded reverse volume above A on a full load; first full load also primes J | 1 mL |
 | G | `forward_retained_margin` | `under` | Minimum fixative reserve in L1 after intermediate forward strokes; also the terminal reserve required ahead of F1 | 1 mL |
 | D | `target_fixative_dose` | `dose` | Requested fixative volume crossing the F1 inlet during this operation | 30 mL |
-| B_req | `requested_final_buffer` | `buffer` | Signed terminal position of the fixative trailing edge, referenced to T1 | +1 mL |
+| B_req | `requested_final_buffer` | `buffer` | Nonnegative volume from the fixative trailing edge to the cartridge inlet | 1 mL |
 
 Use measured effective volumes. Assign connector, tee and valve cavities to defined segments once, with no gaps or duplication. The pump reference plane and any pump-tube hold-up must be reconciled with the overfill assumption in Section 3.
 
-### Signed final buffer
+### Cartridge dosage inputs and visualization
 
-| Value | Terminal condition |
-|---|---|
-| B > 0 | B mL of fixative remains in L1 immediately upstream of T1. |
-| B = 0 | Fixative trailing edge is at T1. |
-| B < 0 | Non-fixative fluid has advanced `−B` mL beyond T1 into L3. |
+The browser derives D from two positive, finite inputs: cartridge volume (default 7 mL) and required dosage multiplier (default 5×). Fractional values and multipliers below 1 are supported. The calculated target is 35 mL by default. The solver API continues to accept D directly, including its existing zero-dose case. Cartridge volume is a dosage/visualization reference, not an additional hold-up term: total forward displacement remains D + C.
 
-The downstream distance, expressed as fluid volume, from the final trailing edge to F1 is `C + B`. Preserve the forward margin by applying:
+Shading uses cumulative fixative crossing the cartridge inlet, excluding initial seawater purge. At delivered volume d, fill fraction is min(1, d / cartridge volume). The light tint has opacity 0.22. For multipliers above 1, after the first cartridge volume, opacity rises linearly to 0.90 at the target. Multipliers at or below 1 keep the light tint. Reverse strokes preserve shading, and seeking recomputes it from cumulative forward displacement. Editing inputs resets playback. The readout shows delivered/target mL and delivered/required cartridge volumes. This visual reports progress toward requested dosage, not verified biological fixation.
+
+### Final buffer from the cartridge
+
+The user requests a nonnegative volume `B_req` between the final fixative trailing edge and the cartridge inlet. This is a volume-equivalent distance in mL, not a physical length. Negative requests are rejected. Preserve the forward retained margin with:
 
 ```text
-B_min = G − C
-B     = max(B_req, B_min)
+B_effective = max(B_req, G)
+B = B_effective − C      # internal tee-relative coordinate only
 ```
 
-Record both requested and effective buffers. A capped input must be reported; it is not silently interpreted as the requested value.
+All displayed and returned buffer values use the cartridge reference. The equations below retain B as an internal coordinate, which can be negative; it is not a signed user input.
 
-For `C = 3 mL` and `G = 1 mL`, the minimum is `B = −2 mL`. At that setting, L1 contains no retained fixative and L3 retains 1 mL ahead of F1. If `G = 0`, the theoretical limit permits the trailing edge to reach the F1 inlet, but not pass it. A zero margin provides no allowance for physical uncertainty.
+A buffer less than C ends inside L3; equal to C ends at T1; greater than C ends in L1. Record both requested and effective values and report any increase to G. With C=3 mL and G=1 mL, a 1 mL buffer leaves 1 mL in L3 and none in L1. A 4 mL buffer leaves 3 mL in L3 and 1 mL in L1. A zero buffer reaches the cartridge inlet only when G is also zero.
 
-This signed-buffer permission applies **only to the final forward stroke**. Intermediate cycles retain at least G in L1. A terminal negative buffer must not be followed by an ordinary reload cycle: reverse pumping cannot remove the non-fixative fluid isolated in L3 behind CV2.
+Entry into L3 applies only to the final stroke. Intermediate strokes retain G in L1. A final buffer below C requires state-aware recovery or repriming before another operation, since reverse pumping cannot remove non-fixative fluid isolated in L3.
 
 ## 3. Initial conditions and model assumptions
 
 ### Physical startup
 
-1. All plumbing initially contains air; the ocean and supply bag contain their respective liquids.
+1. L1, L2, and L3 initially contain air. The bag-to-CV1 line is already filled with 1 mL fixative; the ocean and supply bag contain their respective liquids.
 2. A separate ocean-priming procedure fills the main path, pump and filter with seawater and establishes sampling flow.
 3. Sample collection completes before fixative application starts.
-4. At the start of this solver's operation, L1 and L3 contain seawater; L2 is modeled as air-filled. Fixative inventories are zero.
+4. At the start of this solver's operation, L1 and L3 contain seawater; L2 is modeled as air-filled. L1–L3 fixative inventories are zero; the upstream bag-to-CV1 inventory is 1 mL.
 
 Ocean priming and sample collection are outside the solver's stroke count and fixative totals. Their required displacement is **not** specified by this model: intake plumbing, pump and filter hold-up are not all known. The animation's startup timing is illustrative, not a firmware command.
 
 If L2 is prefilled, partly wet, or contains seawater rather than air, the initial condition differs. Do not use the empty-L2 priming allowance unchanged without updating the state model.
+
+### Fixed pre-primed supply segment
+
+The fixed bag-to-CV1 line contains 1 mL of fixative at startup, during every stroke, and at completion. It is drawn at the same volume scale as L1–L3. No additional priming stroke or 1 mL allowance is commanded. J/L2 represents only the initially air-filled CV1-to-T1 segment. Thus the stroke equations and incremental solver inventories below are unchanged.
+
+Solver `bag_draw` is consumption during the operation; `retained` covers L1–L3. The UI shows the standing supply-line inventory separately and includes it in total retained. Whole-system balance is `bag_draw + 1 mL = delivered + ocean_loss + retained_all_lines`. Convert the standing 1 mL to the selected integer volume unit before combining it with firmware totals. The worked schedules below report L1–L3 inventories, excluding this standing prime.
 
 ### Assumptions used in every calculation
 
@@ -109,8 +115,9 @@ Reject configurations that violate any of the following:
 A > 0
 J >= 0, C >= 0, O >= 0, G >= 0, D >= 0
 G < A
-B_req is finite and representable as a signed volume
-B = max(B_req, G − C)
+B_req >= 0 and finite
+B_effective = max(B_req, G)
+B = B_effective − C
 B < A
 ```
 
@@ -207,20 +214,27 @@ The following Python is a compact reference for porting to C, C++, Rust or anoth
 
 ```python
 def build_plan(A, J, C, O, G, D, B_req, max_cycles):
+    """J covers CV1 to tee only; this segment initially contains air.
+
+    Bag draw and retained inventory are incremental to the plan. The fixed,
+    pre-primed bag-to-CV1 line retains 1 mL throughout and adds no priming
+    command. Add that standing inventory separately in the caller's units.
+    """
     values = (A, J, C, O, G, D, B_req, max_cycles)
     if not all(type(x) is int for x in values):
         raise ValueError("Use integer volume units and integer limits")
-    if A <= 0 or min(J, C, O, G, D) < 0 or not (0 <= G < A):
+    if A <= 0 or min(J, C, O, G, D, B_req) < 0 or not (0 <= G < A):
         raise ValueError("Invalid capacity or margin")
     if max_cycles < 1:
         raise ValueError("Invalid cycle limit")
-    B = max(B_req, G - C)
+    buffer_effective = max(B_req, G)
+    B = buffer_effective - C  # Internal tee-relative offset, not a user input.
     if B >= A:
         raise ValueError("Final buffer leaves no forward capacity")
     if D == 0:
         return {
             "cycles": 0, "strokes": 0, "buffer_requested": B_req,
-            "buffer_effective": B, "buffer_applied": False,
+            "buffer_effective": buffer_effective, "buffer_applied": False,
             "delivered": 0, "ocean_loss": 0, "bag_draw": 0,
             "retained": 0,
         }
@@ -255,7 +269,7 @@ def build_plan(A, J, C, O, G, D, B_req, max_cycles):
     return {
         "A": A, "J": J, "C": C, "O": O, "G": G,
         "cycles": N, "strokes": 2 * N,
-        "buffer_requested": B_req, "buffer_effective": B,
+        "buffer_requested": B_req, "buffer_effective": buffer_effective,
         "buffer_applied": True, "forward_full": F,
         "forward_penultimate": q_penultimate,
         "forward_last": q_last, "reverse_last": r_last,
@@ -340,7 +354,7 @@ delivered(q)     = max(0, P + q − C)
 fix_l1(q)        = max(0, L − q)
 fix_l2(q)        = J
 fix_l3(q)        = max(0, min(C, P + q) − max(0, q − L))
-signed_buffer(q)= L − q
+cartridge_buffer(q) = C + L − q
 ```
 
 Bag draw and ocean loss remain unchanged during forward operation. The `delivered` formula is valid for this schedule because the fixative trailing edge never passes F1. It is not valid for arbitrary extra forward pumping after completion.
@@ -403,7 +417,7 @@ Any active state → STOPPED_FAULT when motion or fluid state becomes uncertain
 | `COMPLETE_HOLD` | Pump stopped; retain the final state and totals. No automatic flush, sampling restart or additional forward motion. |
 | `STOPPED_FAULT` | Stop the pump, record the fault and last known progress, and mark inventory uncertain when appropriate. Resume only after the state can be reconciled. |
 
-A negative final buffer is a terminal condition for this application sequence. Starting another operation requires an explicit state-aware recovery or reprime procedure; it must not silently assume L3 is still entirely fixative-filled.
+A final cartridge buffer smaller than C is a terminal condition for this application sequence. Starting another operation requires an explicit state-aware recovery or reprime procedure; it must not silently assume L3 is still entirely fixative-filled.
 
 ## 9. Pump-driver interface and hardware integration
 
@@ -462,7 +476,7 @@ These checks assume a compatible, valid fluid-state model. Include uncertainty i
 
 Unless stated otherwise, these examples use mL and `A=10, J=3, C=3, O=1, G=1`. Fixative delivered excludes the initial L3 seawater purge.
 
-### Example A — target 30 mL, final buffer +1 mL
+### Example A — target 30 mL, final cartridge buffer 4 mL
 
 | Cycle | Reverse | Forward | Fixative delivered this cycle | Ocean loss this cycle | Cumulative delivered |
 |---:|---:|---:|---:|---:|---:|
@@ -473,23 +487,23 @@ Unless stated otherwise, these examples use mL and `A=10, J=3, C=3, O=1, G=1`. F
 
 Four cycles / eight directional strokes. Bag draw 42 mL; ocean loss 5 mL; retained fixative 7 mL: L1=1, L2=3, L3=3. The first 3 mL forward is the original L3 seawater.
 
-### Example B — target 30 mL, final buffer −2 mL
+### Example B — target 30 mL, final cartridge buffer 1 mL
 
 Cycles 1–3 are unchanged. Final reverse is 3 mL, giving 4 mL of fixative in L1 including its prior 1 mL reserve. Final forward is 6 mL, moving the trailing edge 2 mL into L3.
 
-Totals: four cycles / eight strokes; bag draw 39 mL; delivered 30 mL; ocean loss 5 mL; retained 4 mL: L1=0, L2=3, L3=1. A request of −100 mL is capped to this same −2 mL result.
+Totals: four cycles / eight strokes; bag draw 39 mL; delivered 30 mL; ocean loss 5 mL; retained 4 mL: L1=0, L2=3, L3=1. A request of 0 mL is raised to this same 1 mL result. Negative requests are rejected.
 
 ### Additional acceptance vectors
 
-| D | B_req | Effective B | Reverse sequence | Forward sequence | Delivered | Ocean loss | Bag draw | Retained |
+| D | Cartridge B_req | Effective cartridge buffer | Reverse sequence | Forward sequence | Delivered | Ocean loss | Bag draw | Retained |
 |---:|---:|---:|---|---|---:|---:|---:|---:|
-| 30 | 0 | 0 | 14, 11, 11, 5 | 9, 9, 9, 6 | 30 | 5 | 41 | 6 |
-| 27 | −2 | −2 | 14, 11, 9 | 9, 9, 12 | 27 | 3 | 34 | 4 |
-| 2 | 9 | 9 | 14, 4 | 4, 1 | 2 | 1 | 18 | 15 |
-| 1 | 1 | 1 | 8 | 4 | 1 | 0 | 8 | 7 |
-| 0 | 1 | Not applied | none | none | 0 | 0 | 0 | 0 |
+| 30 | 3 | 3 | 14, 11, 11, 5 | 9, 9, 9, 6 | 30 | 5 | 41 | 6 |
+| 27 | 1 | 1 | 14, 11, 9 | 9, 9, 12 | 27 | 3 | 34 | 4 |
+| 2 | 12 | 12 | 14, 4 | 4, 1 | 2 | 1 | 18 | 15 |
+| 1 | 4 | 4 | 8 | 4 | 1 | 0 | 8 | 7 |
+| 0 | 4 | Not applied | none | none | 0 | 0 | 0 | 0 |
 
-The `D=2, B=9` case exercises a shortened penultimate forward stroke. The `D=1, B=1` case exercises a single trimmed initial load and possible retained air.
+The `D=2, B_req=12` case exercises a shortened penultimate forward stroke. The `D=1, B_req=4` case exercises a single trimmed initial load and possible retained air.
 
 ## 11. Firmware verification requirements
 
@@ -497,14 +511,16 @@ Before hardware acceptance, verify:
 
 1. The integer planner reproduces the schedules above after consistent unit conversion.
 2. Invalid inputs, overflow and device execution limits produce explicit errors before motion.
-3. Capping uses `B_min = G − C`, and requested/effective values are both available in telemetry.
+3. Capping uses `B_effective = max(B_req, G)`, and requested/effective values are both available in telemetry.
 4. The sum of scheduled forward volumes is `D + C` for every nonzero plan.
 5. Every intermediate forward stroke leaves at least G in L1; the final trailing-edge distance to F1 is at least G.
 6. Final reverse loss is zero in the ideal model, and final retained inventory matches the selected B.
 7. At partial reverse/forward progress points, modeled bag draw equals delivered + ocean loss + retained fixative.
 8. Long L3 volumes spanning multiple purge cycles and small fractional-volume targets behave correctly.
-9. Single-cycle operation, zero target, B=0, negative capped B and shortened penultimate cases are covered.
+9. Single-cycle operation, zero target, zero buffer, raised-to-minimum buffer, rejected negative requests and shortened penultimate cases are covered.
 10. Driver quantization, measured stopping behavior, directional calibration and fault recovery satisfy the physical boundary and dose requirements.
 
-The browser reference was checked against 1,000 independent FIFO inventory simulations and running-total checks at partial stroke positions. The executable Python reference extracted from this Markdown was also compared with the browser solver on 1,009 integer-volume cases, including streamed command totals, signed-buffer limits and invalid-input rejection. These are software-model checks, not evidence of measured pump accuracy, valve isolation or filter dosing performance.
+The browser reference was checked against 1,000 independent FIFO inventory simulations and running-total checks at partial stroke positions. The executable Python reference extracted from this Markdown was also compared with the browser solver on 1,009 integer-volume cases, including streamed command totals, cartridge-buffer limits and invalid-input rejection. These are software-model checks, not evidence of measured pump accuracy, valve isolation or filter dosing performance.
 
+
+Saved baseline fixtures were migrated from tee to cartridge coordinates by adding C to buffer values and clamping negative requests to zero. Stroke commands and inventory expectations were preserved and checked against both current solvers.

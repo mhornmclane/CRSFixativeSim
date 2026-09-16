@@ -26,7 +26,7 @@ for case in cases:
     assert forward_total==p['dose']+p['v3']
     assert plan['bag_draw']==plan['delivered']+plan['ocean_loss']+plan['retained']
 
-for args in [(0,3,3,1,1,30,1,100),(10,3,3,1,10,30,1,100),(10,3,3,1,1,30,10,100),(10,3,3,1,1,30,1,1)]:
+for args in [(0,3,3,1,1,30,1,100),(10,3,3,1,10,30,1,100),(10,3,3,1,1,30,13,100),(10,3,3,1,1,30,-1,100),(10,3,3,1,1,30,1,1)]:
     try:
         build_plan(*args)
     except ValueError:
@@ -35,3 +35,14 @@ for args in [(0,3,3,1,1,30,1,100),(10,3,3,1,10,30,1,100),(10,3,3,1,1,30,10,100),
         raise AssertionError(('Expected rejection',args))
 print(f'PASS: Python reference matches saved browser solver fixtures and streamed command totals for {len(cases):,} cases; invalid inputs and cycle limit rejected.')
 
+
+# Cartridge-based buffer: inside L3, at the tee, and upstream in L1.
+for requested in (0, 1, 3, 4, 12):
+    plan = build_plan(10, 3, 3, 1, 1, 30, requested, 100)
+    expected = max(1, requested)
+    assert plan['buffer_effective'] == expected
+    assert plan['retained_l1'] + plan['retained_l3'] == expected
+    assert plan['retained_l1'] == max(0, expected - 3)
+    assert plan['retained_l3'] == min(3, expected)
+assert build_plan(10, 3, 3, 1, 0, 30, 0, 100)['buffer_effective'] == 0
+print('PASS: cartridge-relative buffers, minimum margin, and zero boundary.')

@@ -1,18 +1,25 @@
 def build_plan(A, J, C, O, G, D, B_req, max_cycles):
+    """J covers CV1 to tee only; this segment initially contains air.
+
+    Bag draw and retained inventory are incremental to the plan. The fixed,
+    pre-primed bag-to-CV1 line retains 1 mL throughout and adds no priming
+    command. Add that standing inventory separately in the caller's units.
+    """
     values = (A, J, C, O, G, D, B_req, max_cycles)
     if not all(type(x) is int for x in values):
         raise ValueError("Use integer volume units and integer limits")
-    if A <= 0 or min(J, C, O, G, D) < 0 or not (0 <= G < A):
+    if A <= 0 or min(J, C, O, G, D, B_req) < 0 or not (0 <= G < A):
         raise ValueError("Invalid capacity or margin")
     if max_cycles < 1:
         raise ValueError("Invalid cycle limit")
-    B = max(B_req, G - C)
+    buffer_effective = max(B_req, G)
+    B = buffer_effective - C  # Internal tee-relative offset, not a user input.
     if B >= A:
         raise ValueError("Final buffer leaves no forward capacity")
     if D == 0:
         return {
             "cycles": 0, "strokes": 0, "buffer_requested": B_req,
-            "buffer_effective": B, "buffer_applied": False,
+            "buffer_effective": buffer_effective, "buffer_applied": False,
             "delivered": 0, "ocean_loss": 0, "bag_draw": 0,
             "retained": 0,
         }
@@ -47,7 +54,7 @@ def build_plan(A, J, C, O, G, D, B_req, max_cycles):
     return {
         "A": A, "J": J, "C": C, "O": O, "G": G,
         "cycles": N, "strokes": 2 * N,
-        "buffer_requested": B_req, "buffer_effective": B,
+        "buffer_requested": B_req, "buffer_effective": buffer_effective,
         "buffer_applied": True, "forward_full": F,
         "forward_penultimate": q_penultimate,
         "forward_last": q_last, "reverse_last": r_last,
