@@ -1098,7 +1098,7 @@ html>body{padding:0}</style>
  inputControls.querySelectorAll('input').forEach(i=>{i.parentElement.firstChild.textContent=labels[i.dataset.input];});
  const hint=document.createElement('div');hint.id='fp-compact-buffer';hint.className='fp-input-hint';hint.textContent='Final buffer: + in L1 · 0 at tee · − into L3';inputs.append(hint);
  const notes=document.createElement('details');notes.innerHTML='<summary>Calculated stroke settings</summary>';notes.append(root.querySelector('#fp-policy'),root.querySelector('#fp-buffer-note'));inputs.append(notes);
- const diagram=section('fp-diagram-panel','Fluid paths');diagram.append(svg,legend);
+ const diagram=section('fp-diagram-panel','Fluid paths');diagram.append(svg,legend);const scaleNote=document.createElement('div');scaleNote.className='text-small';scaleNote.style.cssText='text-align:center;margin-top:6px;opacity:.7';scaleNote.textContent='All tubing uses one shared scale, including folds. Fluid follows the complete connected path.';diagram.append(scaleNote);
  const live=section('fp-live-panel','Playback & running totals');live.append(controls,status,progress,table);
  animation.replaceChildren(diagram,live);root.insertBefore(inputs,animation);
  const footer=document.createElement('footer');footer.className='fp-page-footer';footer.append(root.querySelector('#fp-schedule'),assumptions);root.append(footer);
@@ -1149,47 +1149,89 @@ html>body{padding:0}</style>
   function draw(){
     if(!plan)return;
     const {v1,v2,v3,under}=plan,s=state(),q=progress*s.target;
-    const w=Math.max(300,svg.clientWidth),x=Math.max(190,Math.round(w*.54)),l1=110,l2=clamp(v2*26,78,Math.min(110,x-100)),l3=96,start=140,tee=start+l1,inlet=tee+l3,end=inlet+82,height=end+30,bx=x-l2,cvx=(bx+x)/2;
-    svg.style.height=height+'px';svg.setAttribute('viewBox',`0 0 ${w} ${height}`);svg.replaceChildren();el('title',{},'Fixative cycle planner');el('desc',{},'CV1 is the bag-line check valve, labeled immediately below it. CV2 is the filter-line check valve, labeled immediately beside it. Fluid fractions follow entered segment volumes.');
-    const startupFront=38+progress*(end-38),before=forwardThrough(s.c-1),priorFixL3=Math.min(v3,before),retain=s.first?0:v1-cycleForward(s.c-1),forwardLoaded=s.final?plan.lastLoaded:v1;
-    const yAt=z=>z<=0?tee+z/v1*l1:tee+(v3?z/v3*l3:0);
-    line(x,38,x,end,stage===0?C.air:C.water,8);line(bx,tee,x,tee,stage===0||(s.first&&s.reverse)?C.air:C.bag,8);
-    if(stage===0&&progress>0)line(x,38,x,startupFront,C.water,8);
+    // One scale for every measured tube; only the entire diagram may zoom.
+    const pixelsPerMl=Math.min(26,700/Math.max(v1,v2,v3));
+    const pipeLength=volume=>volume*pixelsPerMl;
+    const availableWidth=Math.max(300,svg.clientWidth),w=Math.max(600,availableWidth);
+    const x=w-230,start=80,l1=Math.min(200,pipeLength(v1)),l2=Math.min(200,pipeLength(v2)),l3=Math.min(200,pipeLength(v3));
+    const tee=start+l1,inlet=tee+l3,end=inlet+68,height=Math.max(340,end+45),bx=x-l2,cvx=x-Math.min(35,l2/2);
+    svg.style.height=(height*availableWidth/w)+'px';svg.setAttribute('viewBox',`0 0 ${w} ${height}`);svg.replaceChildren();el('title',{},'Fixative cycle planner');el('desc',{},'All tubing uses one distance per milliliter, including folded sections. The three paths join directly at the tee with no extra connectors. The pump is drawn on L1; fluid moves continuously through it. CV2 stays beside the tee.');
+    function folded(volume,span,lead,tail,maxAmplitude,transform){
+      const added=Math.max(0,pipeLength(volume)-span);
+      const turns=Math.max(1,Math.ceil(added/(2*maxAmplitude))),amplitude=added/(2*turns);
+      const points=[[0,0]];
+      if(added>0){
+        points.push([lead,0]);
+        const step=(span-lead-tail)/turns;
+        for(let i=0;i<turns;i++){
+          const a=lead+i*step,b=a+step*.65;
+          points.push([a,amplitude],[b,amplitude],[b,0],[a+step,0]);
+        }
+      }
+      points.push([span,0]);
+      const route=points.map(([along,across])=>transform(along,across));
+      route.dist=[0];for(let i=1;i<route.length;i++)route.dist.push(route.dist[i-1]+Math.hypot(route[i][0]-route[i-1][0],route[i][1]-route[i-1][1]));
+      route.total=route.dist.at(-1);return route;
+    }
+    function point(route,fraction){
+      const d=clamp(fraction,0,1)*route.total;
+      for(let i=1;i<route.length;i++)if(d<=route.dist[i]){const t=(d-route.dist[i-1])/(route.dist[i]-route.dist[i-1]||1);return [route[i-1][0]+t*(route[i][0]-route[i-1][0]),route[i-1][1]+t*(route[i][1]-route[i-1][1])];}
+      return route.at(-1);
+    }
+    function paint(route,from,to,color,width=8){
+      from=clamp(from,0,1);to=clamp(to,0,1);if(to<=from)return;
+      const points=[point(route,from)];for(let i=1;i<route.length-1;i++)if(route.dist[i]>from*route.total&&route.dist[i]<to*route.total)points.push(route[i]);points.push(point(route,to));
+      el('polyline',{points:points.map(p=>p.join(',')).join(' '),fill:'none',stroke:color,'stroke-width':width,'stroke-linejoin':'round','stroke-linecap':'round'});
+    }
+    const p1=folded(v1,l1,Math.min(85,l1/2),16,100,(a,b)=>[x+b,start+a]);
+    const p2=folded(v2,l2,16,Math.min(60,l2/2),70,(a,b)=>[bx+a,tee-b]);
+    const p3=folded(v3,l3,Math.min(65,l3/2),16,100,(a,b)=>[x+b,tee+a]);
+    const before=forwardThrough(s.c-1),priorFixL3=Math.min(v3,before),retain=s.first?0:v1-cycleForward(s.c-1),forwardLoaded=s.final?plan.lastLoaded:v1;
+    const yAt=z=>z<=0?point(p1,1+z/v1):point(p3,v3?z/v3:0);
+    function fluid(from,to,color,width=8){
+      if(from<0)paint(p1,1+from/v1,1+Math.min(0,to)/v1,color,width);
+      if(to>0&&v3>0)paint(p3,Math.max(0,from)/v3,to/v3,color,width);
+    }
+    paint(p1,0,1,stage===0?C.air:C.water);paint(p3,0,1,stage===0?C.air:C.water);
+    paint(p2,0,1,stage===0||(s.first&&s.reverse)?C.air:C.bag);
+    const mainLength=p1.total+p3.total,startupDistance=progress*mainLength;
+    if(stage===0&&progress>0){
+      paint(p1,0,startupDistance/(p1.total||1),C.water);
+      paint(p3,0,(startupDistance-p1.total)/(p3.total||1),C.water);
+    }
     const load=s.first?Math.max(0,q-v2):q,stored=Math.min(v1,retain+load),oceanLoss=s.reverse?Math.max(0,retain+load-v1):0;
-    let boundary=tee;
+    let boundary=[x,tee];
     if(s.reverse){
-      if(s.first){const near=Math.max(0,q-v2),far=Math.min(v1,q);if(far>near)line(x,tee-far/v1*l1,x,tee-near/v1*l1,C.air,8);}
-      const branchFraction=s.first?(v2?Math.min(1,q/v2):1):1;if(branchFraction>0)line(bx,tee,bx+l2*branchFraction,tee,C.load,8);
-      boundary=tee-stored/v1*l1;if(stored>0)line(x,boundary,x,tee,C.load,8);
-      if(v3>0&&priorFixL3>0)line(x,tee,x,tee+priorFixL3/v3*l3,C.fix,8);
-      if(v3===0)line(x,tee,x,inlet,C.fix,8);
-      if(oceanLoss>0)line(x,38,x,start,C.load,8);
+      if(s.first){const near=Math.max(0,q-v2),far=Math.min(v1,q);if(far>near)fluid(-far,-near,C.air);}
+      paint(p2,0,s.first?(v2?Math.min(1,q/v2):1):1,C.load);
+      boundary=yAt(-stored);fluid(-stored,0,C.load);fluid(0,priorFixL3,C.fix);
+      if(v3===0)paint(p3,0,1,C.fix);
     }
     if(s.forward){
-      if(s.first&&forwardLoaded<v1&&v2>0){const airStart=Math.max(-v1,-Math.min(v1,forwardLoaded+v2)+q),airEnd=Math.min(v3,-forwardLoaded+q);if(airEnd>airStart)line(x,yAt(airStart),x,yAt(airEnd),C.air,8);}
+      if(s.first&&forwardLoaded<v1&&v2>0){const airStart=Math.max(-v1,-Math.min(v1,forwardLoaded+v2)+q),airEnd=Math.min(v3,-forwardLoaded+q);if(airEnd>airStart)fluid(airStart,airEnd,C.air);}
       const tail=q-forwardLoaded,head=Math.min(v3,priorFixL3+q);boundary=yAt(tail);
-      if(head>tail)line(x,boundary,x,yAt(head),C.fix,8);
-      if(v3===0)line(x,tee,x,inlet,C.fix,8);
+      if(head>tail)fluid(tail,head,C.fix);
+      if(v3===0)paint(p3,0,1,C.fix);
     }
-    line(x+28,start,x+28,tee,C.border,1);line(x+23,start,x+33,start,C.border,1);line(x+23,tee,x+33,tee,C.border,1);label(x+38,(start+tee)/2,'L1');label(x+38,(start+tee)/2+20,fmt(v1)+' mL');
-    line(x+82,tee,x+82,inlet,C.border,1);line(x+77,tee,x+87,tee,C.border,1);line(x+77,inlet,x+87,inlet,C.border,1);label(x+82,inlet+18,'L3','end');label(x+82,inlet+38,fmt(v3)+' mL','end');
-    line(bx,tee-28,x,tee-28,C.border,1);line(bx,tee-33,bx,tee-23,C.border,1);line(x,tee-33,x,tee-23,C.border,1);label(cvx,tee-56,'L2','middle');label(cvx,tee-37,fmt(v2)+' mL','middle');
-    el('rect',{x:x-55,y:5,width:110,height:33,rx:8,fill:C.bg,stroke:C.border});label(x,28,'Ocean','middle');
-    const py=start-56;el('circle',{cx:x,cy:py,r:36,fill:C.bg,stroke:C.fg,'stroke-width':1.5});const angle=(s.reverse?-1:1)*progress*6*Math.PI;
-    for(let k=0;k<3;k++)el('circle',{cx:x+20*Math.cos(angle+k*2*Math.PI/3),cy:py+20*Math.sin(angle+k*2*Math.PI/3),r:6,fill:'var(--muted)',stroke:C.fg});el('circle',{cx:x,cy:py,r:5,fill:C.fg});label(x-47,py-5,'P1','end');label(x-47,py+14,'Pump','end');label(x+44,py+5,progress===1?'Stop':s.reverse?'Reverse':'Forward');
+    label(x+125,tee-l1/2,'L1');label(x+125,tee-l1/2+20,fmt(v1)+' mL');
+    label(x+125,tee+l3/2,'L3');label(x+125,tee+l3/2+20,fmt(v3)+' mL');
+    label(bx+20,tee-95,'L2');label(bx+20,tee-75,fmt(v2)+' mL');
+    el('rect',{x:x-55,y:start-33,width:110,height:33,rx:8,fill:C.bg,stroke:C.border});label(x,start-10,'Ocean','middle');
+    const py=start+Math.min(42,l1/2),pumpRadius=Math.min(30,l1/3);el('circle',{cx:x,cy:py,r:pumpRadius,fill:'none',stroke:C.fg,'stroke-width':1.5});const angle=(s.reverse?-1:1)*progress*6*Math.PI;
+    for(let k=0;k<3;k++)el('circle',{cx:x+pumpRadius*.55*Math.cos(angle+k*2*Math.PI/3),cy:py+pumpRadius*.55*Math.sin(angle+k*2*Math.PI/3),r:Math.min(6,pumpRadius*.2),fill:'var(--muted)',stroke:C.fg});el('circle',{cx:x,cy:py,r:Math.min(5,pumpRadius*.16),fill:C.fg});label(x-47,py-5,'P1','end');label(x-47,py+14,'Pump','end');label(x+44,py+5,progress===1?'Stop':s.reverse?'Reverse':'Forward');
     el('rect',{x:bx-90,y:tee-18,width:90,height:80,rx:9,fill:C.bg,stroke:C.fg});label(bx-45,tee+16,'Fixative','middle');label(bx-45,tee+37,'bag','middle');
     function valve(cx,cy,h,open,name){el('rect',{x:cx-13,y:cy-14,width:26,height:28,rx:3,fill:C.bg,stroke:C.fg});el('path',{d:h?`M${cx-7},${cy-7} L${cx+4},${cy} L${cx-7},${cy+7} Z`:`M${cx-7},${cy-7} L${cx},${cy+4} L${cx+7},${cy-7} Z`,fill:open?C.fg:'var(--muted)',stroke:C.fg});if(h){line(cx+6,cy-8,cx+6,cy+8,C.fg,1);label(cx,cy+32,name,'middle');label(cx,cy+51,open?'Open':'Closed','middle');}else{line(cx-8,cy+6,cx+8,cy+6,C.fg,1);label(cx+24,cy-3,name);label(cx+24,cy+16,open?'Open':'Closed');}}
-    valve(cvx,tee,true,s.reverse,'CV1');valve(x,tee+43,false,!s.reverse,'CV2');el('circle',{cx:x,cy:tee,r:5,fill:C.fg});label(x+12,tee-10,'T1');
-    const cumulative=before+(s.forward?q:0),receiving=stage>0&&((v3===0&&(s.forward||!s.first))||cumulative>=v3&&cumulative>0);
-    if(receiving)line(x,inlet+68,x,end,C.fix,8);
-    el('rect',{x:x-26,y:inlet,width:52,height:68,rx:8,fill:C.bg,stroke:C.fg,'stroke-width':1.5});for(let yy=inlet+11;yy<=inlet+56;yy+=9)line(x-17,yy,x+17,yy,stage===0&&yy>startupFront?C.air:receiving?C.fix:C.water,3);label(x-40,inlet+71,'F1','end');label(x-40,inlet+90,'Sterivex','end');label(x,end+22,'Discharge','middle');
-    if(stage>0){line(x-10,boundary,x+10,boundary,C.fg,2);if(oceanLoss>0){label(x-65,17,'Ocean loss','end');label(x-65,36,fmt(oceanLoss)+' mL','end');}if(s.forward){
+    valve(cvx,tee,true,s.reverse,'CV1');valve(x,tee+Math.min(35,l3/2),false,!s.reverse,'CV2');el('circle',{cx:x,cy:tee,r:5,fill:C.fg});label(x+12,tee-10,'T1');
+    el('rect',{x:x-26,y:inlet,width:52,height:68,rx:8,fill:C.bg,stroke:C.fg,'stroke-width':1.5});for(let yy=inlet+11;yy<=inlet+56;yy+=9)line(x-17,yy,x+17,yy,C.border,3);label(x-40,inlet+71,'F1','end');label(x-40,inlet+90,'Sterivex','end');label(x,end+22,'Discharge','middle');
+    if(stage>0){el('circle',{cx:boundary[0],cy:boundary[1],r:5,fill:C.bg,stroke:C.fg,'stroke-width':2});if(oceanLoss>0){label(x-65,17,'Ocean loss','end');label(x-65,36,fmt(oceanLoss)+' mL','end');}if(s.forward){
       const reserve=forwardLoaded-q;
-      if(s.final){line(x+15,yAt(v3-under),x+15,inlet,C.buffer,3);}else{line(x+15,tee-under/v1*l1,x+15,tee,C.buffer,3);}
+      // Trace the reserve along the same folded route as the fluid.
+      if(s.final){fluid(v3-under,v3,C.buffer,3);}else{fluid(-under,0,C.buffer,3);}
       if(progress===1){label(x-15,start+12,'Fixative trailing edge','end');label(x-15,start+31,reserve<0?fmt(-reserve)+' mL into L3':reserve===0?'At T1':fmt(reserve)+' mL before T1','end');}
     }}
     function arrow(y,up,color){el('path',{d:`M${x-5},${y+(up?5:-5)} L${x},${y} L${x+5},${y+(up?5:-5)}`,fill:'none',stroke:color,'stroke-width':2.5});}
-    if(progress<1){if(s.reverse){arrow(start+30,true,boundary<=start+30?C.load:C.water);if(oceanLoss>0)arrow(43,true,C.load);}else{arrow(43,false,stage===0&&startupFront<43?C.air:C.water);arrow(end-8,false,stage===0&&startupFront<end-8?C.air:receiving?C.fix:C.water);}}
+    if(progress<1&&l1>12){const arrowY=start+6;arrow(arrowY,s.reverse,stage===0&&startupDistance<6?C.air:s.reverse&&boundary[1]<=arrowY?C.load:C.water);}
+    const scaleNote=root.querySelector('.fp-diagram-panel .text-small:last-child');if(scaleNote)scaleNote.textContent=`All tubing: ${(pixelsPerMl*availableWidth/w).toFixed(2)} screen px/mL across L1–L3, including folds.`;
     const water=Math.min(q,Math.max(0,v3-before)),delivered=s.forward?Math.max(0,q-water):0;
     $('#fp-progress-value').textContent=stage===0?Math.round(progress*100)+'% · schematic':`${fmt(q)} / ${fmt(s.target)} mL${s.forward?' · '+fmt(delivered)+' mL fixative to F1':' · '+fmt(oceanLoss)+' mL fixative lost'}`;slider.value=Math.round(progress*1000);
     const cumulativeForward=stage===0?0:before+(s.forward?q:0),totalDelivered=Math.max(0,cumulativeForward-v3);
